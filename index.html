@@ -136,7 +136,7 @@ let S={walk:null,history:[],queue:[]};
 try{const raw=localStorage.getItem(KEY); if(raw) S=Object.assign(S,JSON.parse(raw));}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 let form=freshForm(); let setup={campus:null,period:null,date:today()};
-function freshForm(){return{room:"",year:null,subject:null,other:"",tech:null,dis:null,note:""};}
+function freshForm(){return{room:"",year:null,subject:"",tech:null,dis:null,note:""};}
 function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -232,7 +232,8 @@ function renderSetup(){
 }
 
 // lap 1: record each class as you reach it
-function lap1Ready(f){return f.room.trim()&&f.year&&(f.subject&&(f.subject!=="Other"||f.other.trim()))&&f.tech&&(f.tech==="No"||f.dis);}
+function lap1Ready(f){return f.room.trim()&&f.year&&f.subject.trim()&&f.tech&&(f.tech==="No"||f.dis);}
+function lap1Blank(f){return !f.room.trim()&&!f.year&&!f.subject.trim()&&!f.tech&&!f.note.trim();}
 function renderLap1(){
   const w=S.walk,f=form;
   $("#app").innerHTML=`
@@ -240,30 +241,28 @@ function renderLap1(){
     <div><h1>Round 1: class ${w.classes.length+1}</h1><p class="muted">Fill this in at the doorway, then save and walk on.</p></div>
     <div class="field"><label class="label" for="room">Room</label><input type="text" id="room" value="${esc(f.room)}" placeholder="e.g. B204" autocapitalize="characters" autocomplete="off"></div>
     <div class="field"><span class="label">Year level</span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
-    <div class="field"><span class="label">Subject</span><div class="chips" role="group" aria-label="Subject">${SUBJECTS.concat("Other").map(s=>`<button class="chip" data-sub="${esc(s)}" aria-pressed="${f.subject===s}">${esc(s)}</button>`).join("")}</div>
-      ${f.subject==="Other"?`<input type="text" id="other" value="${esc(f.other)}" placeholder="Type the subject">`:""}</div>
-    ${ynBlock("Using tech?","tech",f.tech,false)}
+    <div class="field"><label class="label" for="subj">Subject</label><input type="text" id="subj" value="${esc(f.subject)}" placeholder="e.g. Science" autocapitalize="words" autocomplete="off"></div>
+    ${ynBlock("Using iPads/laptops?","tech",f.tech,false)}
     ${f.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",f.dis,true):""}
     <div class="field"><label class="label" for="note">Note <em>(optional)</em></label><input type="text" id="note" value="${esc(f.note)}" placeholder="e.g. two students on games"></div>
     <button class="btn" id="saveC" ${lap1Ready(f)?"":"disabled"}>Save and go to next class</button>
+    <button class="btn gold" id="endLap" ${lap1Ready(f)||(w.classes.length&&lap1Blank(f))?"":"disabled"}>${lap1Ready(f)?"Save and finish round 1":"Finish round 1"}</button>
+    <p class="muted">Finish round 1 whenever you're done. Round 2 visits the same rooms.</p>
   </section>
-  ${w.classes.length?`<section class="panel"><h2>Round 1 so far (${w.classes.length})</h2>${classList(0,true)}
-    <button class="btn gold" id="endLap">Finish round 1</button>
-    <p class="muted">Finish once you have reached the last class on your route.</p></section>`:""}`;
+  ${w.classes.length?`<section class="panel"><h2>Round 1 so far (${w.classes.length})</h2>${classList(0,true)}</section>`:""}`;
   $("#room").oninput=e=>{f.room=e.target.value;upd();};
-  const o=$("#other"); if(o) o.oninput=e=>{f.other=e.target.value;upd();};
+  $("#subj").oninput=e=>{f.subject=e.target.value;upd();};
   $("#note").oninput=e=>{f.note=e.target.value;};
   document.querySelectorAll("[data-year]").forEach(b=>b.onclick=()=>{f.year=+b.dataset.year;renderLap1();});
-  document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{f.subject=b.dataset.sub;renderLap1();if(f.subject==="Other")$("#other").focus();});
   bindYN(v=>{f.tech=v;if(v==="No")f.dis=null;renderLap1();},v=>{f.dis=v;renderLap1();});
   function upd(){$("#saveC").disabled=!lap1Ready(f);}
   $("#saveC").onclick=()=>{
-    const subj=f.subject==="Other"?f.other.trim():f.subject,r=f.room.trim().toUpperCase();
+    const subj=f.subject.trim(),r=f.room.trim().toUpperCase();
     w.classes.push({id:"c"+Date.now().toString(36),room:r,year:f.year,subject:subj,note:f.note.trim(),
       checks:[{tech:f.tech,dis:f.tech==="Yes"?f.dis:"",at:Date.now()},null,null]});
     form=freshForm(); save(); renderLap1(); scrollTo({top:0}); toast("Saved "+r+". Next class.");
   };
-  const e=$("#endLap"); if(e) e.onclick=()=>endLap();
+  $("#endLap").onclick=()=>{if(lap1Ready(f))$("#saveC").click();if(S.walk.classes.length)endLap();};
   bindDeletes();
 }
 function ynBlock(label,key,val,dis){
@@ -272,7 +271,7 @@ function ynBlock(label,key,val,dis){
 }
 function bindYN(onTech,onDis){document.querySelectorAll("[data-yn]").forEach(b=>b.onclick=()=>(b.dataset.yn==="tech"?onTech:onDis)(b.dataset.v));}
 function tagFor(c){if(!c)return `<span class="tag s">Not checked</span>`;if(c.tech==="Not seen")return `<span class="tag s">Not seen</span>`;
-  if(c.tech==="No")return `<span class="tag n">No tech</span>`;return `<span class="tag y">Tech</span>${c.dis==="Yes"?` <span class="tag d">Distracted</span>`:""}`;}
+  if(c.tech==="No")return `<span class="tag n">No devices</span>`;return `<span class="tag y">Devices</span>${c.dis==="Yes"?` <span class="tag d">Distracted</span>`:""}`;}
 function classList(lap,canDelete){
   return `<ul class="list">${S.walk.classes.map((c,i)=>`<li><div class="who"><b>${esc(c.room)}</b> · Yr ${c.year} ${esc(c.subject)}</div>${tagFor(c.checks[lap])}
     ${canDelete&&!c.checks[0].sent?`<button class="del" data-del="${i}">Remove</button>`:""}</li>`).join("")}</ul>`;
@@ -284,18 +283,19 @@ function bindDeletes(){document.querySelectorAll("[data-del]").forEach(b=>b.oncl
 // laps 2 and 3: same route, one class at a time
 function renderLapN(){
   const w=S.walk,L=w.lap,i=w.stop,c=w.classes[i],ck=c.checks[L]||{tech:null,dis:null};
-  const prevTxt=k=>!k?"not checked":k.tech==="Yes"?"tech in use":k.tech==="No"?"no tech":"not seen";
+  const prevTxt=k=>!k?"not checked":k.tech==="Yes"?"iPads/laptops in use":k.tech==="No"?"no devices":"not seen";
   $("#app").innerHTML=`
   <section class="panel">
     <div class="progress" aria-hidden="true">${w.classes.map((x,j)=>`<i class="${x.checks[L]&&x.checks[L].tech&&(x.checks[L].tech!=="Yes"||x.checks[L].dis)?"done":j===i?"now":""}"></i>`).join("")}</div>
     <div class="stop"><span class="muted">Round ${L+1} · stop ${i+1} of ${w.classes.length}</span><span class="room">${esc(c.room)}</span><span>Year ${c.year} ${esc(c.subject)}</span>
       <span class="muted">Round 1: ${prevTxt(c.checks[0])}${L===2?", round 2: "+prevTxt(c.checks[1]):""}</span></div>
-    ${ynBlock("Using tech?","tech",ck.tech,false)}
+    ${ynBlock("Using iPads/laptops?","tech",ck.tech,false)}
     ${ck.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",ck.dis,true):""}
+    <button class="btn gold" id="endEarly">Finish round ${L+1}</button>
     <button class="btn ghost" id="prev" ${i===0?"disabled":""}>Back to previous class</button>
+    <p class="muted">Rooms you don't reach this round stay blank.</p>
   </section>
-  <section class="panel"><h2>Round ${L+1} so far</h2>${classList(L,false)}
-    <button class="link" id="endEarly">Finish round ${L+1} now (unchecked classes stay blank)</button></section>`;
+  <section class="panel"><h2>Round ${L+1} so far</h2>${classList(L,false)}</section>`;
   const commit=(tech,dis)=>{c.checks[L]={tech,dis:tech==="Yes"?dis:"",at:Date.now()};save();next();};
   bindYN(v=>{if(v==="No")commit("No","");else{c.checks[L]={tech:"Yes",dis:null,at:Date.now()};save();renderLapN();}},v=>commit("Yes",v));
   $("#prev").onclick=()=>{w.stop=Math.max(0,i-1);save();renderLapN();};
@@ -353,8 +353,8 @@ function renderDone(){
     <div class="facts">
       <div>Classes visited</div><div>${o.classes}</div>
       <div>Checks made</div><div>${o.checks}</div>
-      <div>Checks with tech in use</div><div>${o.tech} (${pct(o.pctTech)})</div>
-      <div>Tech checks with someone distracted</div><div>${o.dis} (${pct(o.pctDis)})</div>
+      <div>Checks with iPads/laptops in use</div><div>${o.tech} (${pct(o.pctTech)})</div>
+      <div>Device checks with someone distracted</div><div>${o.dis} (${pct(o.pctDis)})</div>
       <div>Estimated screen minutes, all classes</div><div>${o.mins}</div>
       <div>Average per class (out of 30 min)</div><div>${o.classes?(o.mins/o.classes).toFixed(1):"–"}</div>
     </div>
@@ -371,7 +371,7 @@ function renderDone(){
   bindHistory();
 }
 function table(rows,head,fmt){
-  return `<table><thead><tr><th>${head}</th><th class="n">Classes</th><th class="n">Tech</th><th class="n">Mins</th><th class="n">Distracted</th></tr></thead><tbody>
+  return `<table><thead><tr><th>${head}</th><th class="n">Classes</th><th class="n">Devices</th><th class="n">Mins</th><th class="n">Distracted</th></tr></thead><tbody>
   ${rows.map(r=>`<tr><td>${fmt(r.key)}</td><td class="n">${r.classes}</td><td class="n">${pct(r.pctTech)}</td><td class="n">${r.mins}</td><td class="n">${pct(r.pctDis)}</td></tr>`).join("")}</tbody></table>`;
 }
 
@@ -387,7 +387,7 @@ function bindHistory(){document.querySelectorAll("[data-dlone]").forEach(b=>b.on
 // excel download of one walk (backup; the shared sheet is the main record)
 function download(w){
   if(typeof XLSX==="undefined"){toast("Excel maker didn't load. Check your signal.");return;}
-  const rows=[["Check ID","Campus","Date","Period","Round","Time","Room","Year level","Subject","Using tech","Distracted","Note"]];
+  const rows=[["Check ID","Campus","Date","Period","Round","Time","Room","Year level","Subject","Using iPads/laptops","Distracted","Note"]];
   [0,1,2].forEach(l=>w.classes.forEach(c=>{const k=c.checks[l];if(!k)return;const p=payload(w,c,l);
     rows.push([p.checkId,p.campus,p.date,+p.period,+p.round,p.time,p.room,p.year,p.subject,p.tech,p.distracted,p.note]);}));
   const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
