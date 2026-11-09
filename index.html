@@ -149,7 +149,7 @@ function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("on");c
 let sending=false,retryT=null;
 function payload(w,c,lap){const k=c.checks[lap];
   return{checkId:w.id+"-"+c.id+"-R"+(lap+1),walkId:w.id,campus:w.campus,date:w.date,period:String(w.period||""),round:String(lap+1),time:clockTime(k.at),
-    room:c.room,year:"Year "+c.year,subject:c.subject,tech:k.tech,distracted:k.dis||"",note:lap===0?(c.note||""):""};}
+    room:c.room,year:c.year?"Year "+c.year:"",subject:c.subject,tech:k.tech,distracted:k.dis||"",note:lap===0?(c.note||""):""};}
 function queueLap(w,lap){
   w.classes.forEach(c=>{const k=c.checks[lap];if(k&&!k.sent){k.sent="queued";S.queue.push(payload(w,c,lap));}});
   save();kick();
@@ -232,7 +232,8 @@ function renderSetup(){
 }
 
 // lap 1: record each class as you reach it
-function lap1Ready(f){return f.room.trim()&&f.year&&f.subject.trim()&&f.tech&&(f.tech==="No"||f.dis);}
+function lap1Ready(f){return f.room.trim()&&f.tech&&(f.tech==="No"||f.dis);}
+function classLabel(c,long){const y=c.year?(long?"Year ":"Yr ")+c.year:"";const t=[y,c.subject].filter(Boolean).join(" ");return t||"Year and subject not noted";}
 function lap1Blank(f){return !f.room.trim()&&!f.year&&!f.subject.trim()&&!f.tech&&!f.note.trim();}
 function renderLap1(){
   const w=S.walk,f=form;
@@ -240,8 +241,8 @@ function renderLap1(){
   <section class="panel">
     <div><h1>Round 1: class ${w.classes.length+1}</h1><p class="muted">Fill this in at the doorway, then save and walk on.</p></div>
     <div class="field"><label class="label" for="room">Room</label><input type="text" id="room" value="${esc(f.room)}" placeholder="e.g. B204" autocapitalize="characters" autocomplete="off"></div>
-    <div class="field"><span class="label">Year level</span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
-    <div class="field"><label class="label" for="subj">Subject</label><input type="text" id="subj" value="${esc(f.subject)}" placeholder="e.g. Science" autocapitalize="words" autocomplete="off"></div>
+    <div class="field"><span class="label">Year level <em>(optional)</em></span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
+    <div class="field"><label class="label" for="subj">Subject <em>(optional)</em></label><input type="text" id="subj" value="${esc(f.subject)}" placeholder="e.g. Science" autocapitalize="words" autocomplete="off"></div>
     ${ynBlock("Using iPads/laptops?","tech",f.tech,false)}
     ${f.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",f.dis,true):""}
     <div class="field"><label class="label" for="note">Note <em>(optional)</em></label><input type="text" id="note" value="${esc(f.note)}" placeholder="e.g. two students on games"></div>
@@ -254,7 +255,7 @@ function renderLap1(){
   $("#room").oninput=e=>{f.room=e.target.value;upd();};
   $("#subj").oninput=e=>{f.subject=e.target.value;upd();};
   $("#note").oninput=e=>{f.note=e.target.value;};
-  document.querySelectorAll("[data-year]").forEach(b=>b.onclick=()=>{f.year=+b.dataset.year;renderLap1();});
+  document.querySelectorAll("[data-year]").forEach(b=>b.onclick=()=>{f.year=f.year===+b.dataset.year?null:+b.dataset.year;renderLap1();});
   bindYN(v=>{f.tech=v;if(v==="No")f.dis=null;renderLap1();},v=>{f.dis=v;renderLap1();});
   function upd(){$("#saveC").disabled=!lap1Ready(f);}
   $("#saveC").onclick=()=>{
@@ -275,7 +276,7 @@ function bindYN(onTech,onDis){document.querySelectorAll("[data-yn]").forEach(b=>
 function tagFor(c){if(!c)return `<span class="tag s">Not checked</span>`;if(c.tech==="Not seen")return `<span class="tag s">Not seen</span>`;
   if(c.tech==="No")return `<span class="tag n">No devices</span>`;return `<span class="tag y">Devices</span>${c.dis==="Yes"?` <span class="tag d">Distracted</span>`:""}`;}
 function classList(lap,canDelete){
-  return `<ul class="list">${S.walk.classes.map((c,i)=>`<li><div class="who"><b>${esc(c.room)}</b> · Yr ${c.year} ${esc(c.subject)}</div>${tagFor(c.checks[lap])}
+  return `<ul class="list">${S.walk.classes.map((c,i)=>`<li><div class="who"><b>${esc(c.room)}</b> · ${esc(classLabel(c,false))}</div>${tagFor(c.checks[lap])}
     ${canDelete&&!c.checks[0].sent?`<button class="del" data-del="${i}">Remove</button>`:""}</li>`).join("")}</ul>`;
 }
 function bindDeletes(){document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
@@ -289,7 +290,7 @@ function renderLapN(){
   $("#app").innerHTML=`
   <section class="panel">
     <div class="progress" aria-hidden="true">${w.classes.map((x,j)=>`<i class="${x.checks[L]&&x.checks[L].tech&&(x.checks[L].tech!=="Yes"||x.checks[L].dis)?"done":j===i?"now":""}"></i>`).join("")}</div>
-    <div class="stop"><span class="muted">Round ${L+1} · stop ${i+1} of ${w.classes.length}</span><span class="room">${esc(c.room)}</span><span>Year ${c.year} ${esc(c.subject)}</span>
+    <div class="stop"><span class="muted">Round ${L+1} · stop ${i+1} of ${w.classes.length}</span><span class="room">${esc(c.room)}</span><span>${esc(classLabel(c,true))}</span>
       <span class="muted">Round 1: ${prevTxt(c.checks[0])}${L===2?", round 2: "+prevTxt(c.checks[1]):""}</span></div>
     ${ynBlock("Using iPads/laptops?","tech",ck.tech,false)}
     ${ck.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",ck.dis,true):""}
@@ -392,7 +393,7 @@ function renderDone(){
     <p class="muted">Each "Yes" for tech counts as about ${MIN_PER_YES} minutes of screen time.</p>
   </section>
   <section class="panel"><h2>By year level</h2><div class="scroll">${table(s.years,"Year",k=>"Year "+k)}</div></section>
-  <section class="panel"><h2>By subject</h2><div class="scroll">${table(s.subjects,"Subject",k=>esc(k))}</div></section>
+  <section class="panel"><h2>By subject</h2><div class="scroll">${table(s.subjects,"Subject",k=>esc(k||"Not noted"))}</div></section>
   ${historyPanel()}`;
   $("#dl").onclick=()=>download(w);
   $("#newWalk").onclick=()=>{S.walk=null;setup.campus=null;setup.period=null;setup.date=today();save();render();scrollTo({top:0});};
@@ -415,11 +416,11 @@ function bindHistory(){document.querySelectorAll("[data-dlone]").forEach(b=>b.on
 // excel download of one walk (backup; the shared sheet is the main record)
 function download(w){
   if(typeof XLSX==="undefined"){toast("Excel maker didn't load. Check your signal.");return;}
-  const rows=[["Check ID","Campus","Date","Period","Round","Time","Room","Year level","Subject","Using iPads/laptops","Distracted","Note"]];
+  const rows=[["Campus","Date","Period","Round","Time","Room","Year level","Subject","Using iPads/laptops","Distracted","Note"]];
   [0,1,2].forEach(l=>w.classes.forEach(c=>{const k=c.checks[l];if(!k)return;const p=payload(w,c,l);
-    rows.push([p.checkId,p.campus,p.date,+p.period,+p.round,p.time,p.room,p.year,p.subject,p.tech,p.distracted,p.note]);}));
+    rows.push([p.campus,p.date,+p.period,+p.round,p.time,p.room,p.year,p.subject,p.tech,p.distracted,p.note]);}));
   const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"]=[{wch:22},{wch:14},{wch:11},{wch:7},{wch:7},{wch:9},{wch:8},{wch:9},{wch:16},{wch:10},{wch:10},{wch:30}];
+  ws["!cols"]=[{wch:14},{wch:11},{wch:7},{wch:7},{wch:9},{wch:8},{wch:9},{wch:16},{wch:10},{wch:10},{wch:30}];
   XLSX.utils.book_append_sheet(wb,ws,"Checks");
   XLSX.writeFile(wb,`Screen time walk - ${w.campus} - ${w.date}.xlsx`);
 }
