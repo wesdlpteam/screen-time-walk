@@ -63,10 +63,11 @@ input:focus-visible,button:focus-visible{outline:3px solid var(--gold);outline-o
 .years .chip{min-width:52px}
 .campus{display:grid;gap:10px}
 .campus .chip{border-radius:10px;text-align:left;font-size:1.1rem;padding:14px 16px}
-.yn{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.yn button{font:inherit;font-size:1.2rem;font-weight:600;min-height:60px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
-.yn button[data-v=Yes][aria-pressed=true]{background:var(--yes-tint);border-color:var(--yes);color:var(--yes)}
-.yn button[data-v=No][aria-pressed=true]{background:var(--no-tint);border-color:var(--no);color:var(--no)}
+.yn{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.yn button{font:inherit;font-size:1.05rem;line-height:1.15;padding:4px;font-weight:600;min-height:60px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.yn button[data-v=Mixed][aria-pressed=true]{background:var(--yes-tint);border-color:var(--yes);color:var(--yes)}
+.yn button[data-v="Whole class"][aria-pressed=true]{background:var(--yes);border-color:var(--yes);color:var(--surface)}
+.yn button[data-v=None][aria-pressed=true]{background:var(--no-tint);border-color:var(--no);color:var(--no)}
 .yn.dis button[data-v=Yes][aria-pressed=true]{background:var(--warn-tint);border-color:var(--warn-ink);color:var(--warn-ink)}
 .btn{font:inherit;font-size:1.1rem;font-weight:600;min-height:56px;width:100%;border-radius:12px;border:0;background:var(--purple);color:#fff;cursor:pointer;padding:0 18px}
 .btn:disabled{opacity:.4;cursor:not-allowed}
@@ -127,8 +128,12 @@ let flowUrl=BUILT_IN;
 const CAMPUSES=["Glen Waverley","St Kilda Road","Elsternwick"];
 const YEARS=[5,6,7,8,9,10,11,12];
 const PERIODS=[1,2,3,4,5,6];
-const SUBJECTS=["English","Maths","Science","Humanities","Languages","Visual Arts","Music","Drama","Health & PE","Digital Tech","Design Tech","PYP Homeroom","Library"];
-const MIN_PER_YES=10, KEY="stw-site-v1";
+const SUBJECTS=["English","Maths","Science","I&S","Languages","Visual Arts","Music","Performing Arts","HPE","Design","General","Library","Commerce"];
+// round answers. Yes/No kept so walks saved by older versions still count
+const TECH=["None","Mixed","Whole class"];
+const isTech=v=>v==="Mixed"||v==="Whole class"||v==="Yes";
+const isAnswer=v=>isTech(v)||v==="None"||v==="No";
+const KEY="stw-site-v1";
 let hasFlow=validFlow(flowUrl);
 
 // state + storage
@@ -147,7 +152,7 @@ function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("on");c
 
 // send queue: one row per class (rounds as columns), sent when the walk ends; retry every 30s
 let sending=false,retryT=null;
-function payload(w,c){const v=l=>{const k=c.checks[l];return k&&(k.tech==="Yes"||k.tech==="No")?k.tech:"";};
+function payload(w,c){const v=l=>{const k=c.checks[l];return k&&isAnswer(k.tech)?k.tech:"";};
   return{rowId:w.id+"-"+c.id,walkId:w.id,campus:w.campus,date:w.date,period:String(w.period||""),
     room:c.room,year:c.year?"Year "+c.year:"",subject:c.subject||"",r1:v(0),r2:v(1),r3:v(2),note:c.note||""};}
 function queueWalk(w){w.classes.forEach(c=>{if(!c.sent){c.sent="queued";S.queue.push(payload(w,c));}});save();kick();}
@@ -239,7 +244,7 @@ function renderLap1(){
     <div><h1>Round 1: class ${w.classes.length+1}</h1><p class="muted">Fill this in at the doorway, then save and walk on.</p></div>
     <div class="field"><label class="label" for="room">Room</label><input type="text" id="room" value="${esc(f.room)}" placeholder="e.g. B204" autocapitalize="characters" autocomplete="off"></div>
     <div class="field"><span class="label">Year level <em>(optional)</em></span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
-    <div class="field"><label class="label" for="subj">Subject <em>(optional)</em></label><input type="text" id="subj" value="${esc(f.subject)}" placeholder="e.g. Science" autocapitalize="words" autocomplete="off"></div>
+    <div class="field"><span class="label">Subject <em>(optional)</em></span><div class="chips" role="group" aria-label="Subject">${SUBJECTS.map(x=>`<button class="chip" data-subj="${esc(x)}" aria-pressed="${f.subject===x}">${esc(x)}</button>`).join("")}</div></div>
     ${ynBlock("Using iPads/laptops?","tech",f.tech,false)}
     <div class="field"><label class="label" for="note">Note <em>(optional)</em></label><input type="text" id="note" value="${esc(f.note)}" placeholder="e.g. two students on games"></div>
     <button class="btn" id="saveC" ${lap1Ready(f)?"":"disabled"}>Save and go to next class</button>
@@ -249,7 +254,7 @@ function renderLap1(){
   ${w.classes.length?`<section class="panel"><h2>Round 1 so far (${w.classes.length})</h2>${classList(0,true)}</section>`:""}
   ${endWalkBlock()}`;
   $("#room").oninput=e=>{f.room=e.target.value;upd();};
-  $("#subj").oninput=e=>{f.subject=e.target.value;upd();};
+  document.querySelectorAll("[data-subj]").forEach(b=>b.onclick=()=>{f.subject=f.subject===b.dataset.subj?"":b.dataset.subj;renderLap1();});
   $("#note").oninput=e=>{f.note=e.target.value;};
   document.querySelectorAll("[data-year]").forEach(b=>b.onclick=()=>{f.year=f.year===+b.dataset.year?null:+b.dataset.year;renderLap1();});
   bindYN(v=>{f.tech=v;renderLap1();});
@@ -266,11 +271,11 @@ function renderLap1(){
 }
 function ynBlock(label,key,val,dis){
   return `<div class="field"><span class="label">${label}</span><div class="yn${dis?" dis":""}" role="group" aria-label="${esc(label)}">
-    <button data-yn="${key}" data-v="Yes" aria-pressed="${val==="Yes"}">Yes</button><button data-yn="${key}" data-v="No" aria-pressed="${val==="No"}">No</button></div></div>`;
+    ${TECH.map(t=>`<button data-yn="${key}" data-v="${t}" aria-pressed="${val===t}">${t}</button>`).join("")}</div></div>`;
 }
 function bindYN(onTech,onDis){document.querySelectorAll("[data-yn]").forEach(b=>b.onclick=()=>(b.dataset.yn==="tech"?onTech:onDis)(b.dataset.v));}
 function tagFor(c){if(!c)return `<span class="tag s">Not checked</span>`;if(c.tech==="Not seen")return `<span class="tag s">Not seen</span>`;
-  if(c.tech==="No")return `<span class="tag n">No devices</span>`;return `<span class="tag y">Devices</span>`;}
+  if(c.tech==="No"||c.tech==="None")return `<span class="tag n">None</span>`;return `<span class="tag y">${c.tech==="Yes"?"Devices":esc(c.tech)}</span>`;}
 function classList(lap,canDelete){
   return `<ul class="list">${S.walk.classes.map((c,i)=>`<li><div class="who"><b>${esc(c.room)}</b> · ${esc(classLabel(c,false))}</div>${tagFor(c.checks[lap])}
     ${canDelete&&!c.checks[0].sent?`<button class="del" data-del="${i}">Remove</button>`:""}</li>`).join("")}</ul>`;
@@ -283,7 +288,7 @@ function bindDeletes(){document.querySelectorAll("[data-del]").forEach(b=>b.oncl
 function renderLapN(){
   const w=S.walk,L=w.lap,left=w.classes.map((c,i)=>({c,i})).filter(x=>!x.c.checks[L]),done=w.classes.map((c,i)=>({c,i})).filter(x=>x.c.checks[L]);
   const picked=w.pick!=null&&w.classes[w.pick]&&!w.classes[w.pick].checks[L]?w.classes[w.pick]:null;
-  const prevTxt=k=>!k?"not checked":k.tech==="Yes"?"iPads/laptops in use":k.tech==="No"?"no devices":"not seen";
+  const prevTxt=k=>!k?"not checked":k.tech==="Yes"?"iPads/laptops in use":(k.tech==="No"||k.tech==="None")?"none":isTech(k.tech)?k.tech.toLowerCase():"not seen";
   const top=picked?`
   <section class="panel">
     <div class="stop"><span class="muted">Round ${L+1}</span><span class="room">${esc(picked.room)}</span><span>${esc(classLabel(picked,true))}</span>
@@ -309,7 +314,7 @@ function renderLapN(){
 }
 function endLap(){
   const w=S.walk; if(w.lap===0&&!w.classes.length) return;
-  w.classes.forEach(c=>{const k=c.checks[w.lap];if(k&&k.tech==="Yes"&&!k.dis)k.dis="";});
+  w.classes.forEach(c=>{const k=c.checks[w.lap];if(k&&isTech(k.tech)&&!k.dis)k.dis="";});
   w.laps[w.lap].end=Date.now();w.pick=null;
   if(w.lap===2){queueWalk(w);w.phase="done";w.finishedAt=Date.now();S.history=[w].concat(S.history.filter(h=>h.id!==w.id)).slice(0,20);if(wake)wake.release().catch(()=>{});}
   else w.phase="between";
@@ -360,13 +365,14 @@ function renderBetween(){
 
 // stats
 function stats(classes){
-  const all=[];classes.forEach(c=>c.checks.forEach((k,l)=>{if(k&&(k.tech==="Yes"||k.tech==="No"))all.push({c,l,k});}));
-  const pack=list=>{const checks=list.length,tech=list.filter(x=>x.k.tech==="Yes").length,dis=list.filter(x=>x.k.tech==="Yes"&&x.k.dis==="Yes").length;
-    return{checks,tech,pctTech:checks?tech/checks:null,dis,pctDis:tech?dis/tech:null,mins:tech*MIN_PER_YES};};
+  const all=[];classes.forEach(c=>c.checks.forEach((k,l)=>{if(k&&isAnswer(k.tech))all.push({c,l,k});}));
+  const pack=list=>{const checks=list.length,n=v=>list.filter(x=>x.k.tech===v).length,tech=list.filter(x=>isTech(x.k.tech)).length,mixed=n("Mixed"),whole=n("Whole class");
+    const pc=x=>checks?x/checks:null;
+    return{checks,tech,pctTech:pc(tech),mixed,pctMixed:pc(mixed),whole,pctWhole:pc(whole)};};
   const by=(keyFn,keys)=>keys.map(k=>Object.assign({key:k,classes:classes.filter(c=>keyFn(c)===k).length},pack(all.filter(x=>keyFn(x.c)===k)))).filter(r=>r.classes);
   return{overall:Object.assign({classes:classes.length},pack(all)),
     laps:[0,1,2].map(l=>Object.assign({key:"Round "+(l+1)},pack(all.filter(x=>x.l===l)))),
-    years:by(c=>c.year,YEARS),subjects:by(c=>c.subject,[...new Set(classes.map(c=>c.subject))])};
+    years:by(c=>c.year,YEARS),subjects:by(c=>c.subject,[...new Set(SUBJECTS.concat(classes.map(c=>c.subject)))])};
 }
 const pct=v=>v==null?"–":Math.round(v*100)+"%";
 
@@ -380,13 +386,13 @@ function renderDone(){
     <div class="facts">
       <div>Classes visited</div><div>${o.classes}</div>
       <div>Checks made</div><div>${o.checks}</div>
-      <div>Checks with iPads/laptops in use</div><div>${o.tech} (${pct(o.pctTech)})</div>
-      <div>Estimated screen minutes, all classes</div><div>${o.mins}</div>
-      <div>Average per class (out of 30 min)</div><div>${o.classes?(o.mins/o.classes).toFixed(1):"–"}</div>
+      <div>Mixed</div><div>${o.mixed} (${pct(o.pctMixed)})</div>
+      <div>Whole class</div><div>${o.whole} (${pct(o.pctWhole)})</div>
+      <div>Any iPads/laptops</div><div>${o.tech} (${pct(o.pctTech)})</div>
     </div>
     <p class="muted" id="sync">${esc(syncLine())}</p>
     <button class="btn" id="newWalk">Start a new walk</button>
-    <p class="muted">Each "Yes" for tech counts as about ${MIN_PER_YES} minutes of screen time.</p>
+    <p class="muted">Percentages are out of all checks made.</p>
   </section>
   <section class="panel"><h2>By year level</h2><div class="scroll">${table(s.years,"Year",k=>"Year "+k)}</div></section>
   <section class="panel"><h2>By subject</h2><div class="scroll">${table(s.subjects,"Subject",k=>esc(k||"Not noted"))}</div></section>
@@ -395,8 +401,8 @@ function renderDone(){
   bindHistory();
 }
 function table(rows,head,fmt){
-  return `<table><thead><tr><th>${head}</th><th class="n">Classes</th><th class="n">Devices</th><th class="n">Mins</th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td>${fmt(r.key)}</td><td class="n">${r.classes}</td><td class="n">${pct(r.pctTech)}</td><td class="n">${r.mins}</td></tr>`).join("")}</tbody></table>`;
+  return `<table><thead><tr><th>${head}</th><th class="n">Classes</th><th class="n">Mixed</th><th class="n">Whole class</th><th class="n">Any</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${fmt(r.key)}</td><td class="n">${r.classes}</td><td class="n">${pct(r.pctMixed)}</td><td class="n">${pct(r.pctWhole)}</td><td class="n">${pct(r.pctTech)}</td></tr>`).join("")}</tbody></table>`;
 }
 
 // walks kept on this phone
