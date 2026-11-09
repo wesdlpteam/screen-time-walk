@@ -117,14 +117,19 @@ td.n,th.n{text-align:right}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-// settings: flowUrl filled after the Power Automate flow is built
-const CONFIG={flowUrl:""};
+// flow link is never in this file: each phone stores it once (pasted, or from a #k= team link)
+const FLOW_KEY="stw-flow";
+function validFlow(u){return /^https:\/\/[a-z0-9.-]+\.(powerplatform\.com|logic\.azure\.com)(:443)?\/\S+sig=\S+$/.test(u||"");}
+let flowUrl="";try{flowUrl=localStorage.getItem(FLOW_KEY)||"";}catch(e){}
+(function(){const m=location.hash.match(/^#k=(.+)$/);if(!m)return;let u="";try{u=decodeURIComponent(m[1]);}catch(e){}
+  if(validFlow(u)){flowUrl=u;try{localStorage.setItem(FLOW_KEY,u);}catch(e){}}
+  try{history.replaceState(null,"",location.pathname);}catch(e){}})();
 const CAMPUSES=["Glen Waverley","St Kilda Road","Elsternwick"];
 const YEARS=[5,6,7,8,9,10,11,12];
 const PERIODS=[1,2,3,4,5,6];
 const SUBJECTS=["English","Maths","Science","Humanities","Languages","Visual Arts","Music","Drama","Health & PE","Digital Tech","Design Tech","PYP Homeroom","Library"];
 const MIN_PER_YES=10, KEY="stw-site-v1";
-const hasFlow=!!CONFIG.flowUrl;
+let hasFlow=validFlow(flowUrl);
 
 // state + storage
 let S={walk:null,history:[],queue:[]};
@@ -154,7 +159,7 @@ function findCheck(p){const all=[S.walk].concat(S.history).filter(Boolean);
 function kick(){if(!hasFlow||sending||!S.queue.length)return;sendNext();}
 async function sendNext(){
   const p=S.queue[0];sending=true;setSync();let res=null;
-  try{res=await fetch(CONFIG.flowUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});}catch(e){res=null;}
+  try{res=await fetch(flowUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});}catch(e){res=null;}
   sending=false;
   if(res&&res.ok){S.queue.shift();const k=findCheck(p);if(k)k.sent=true;save();setSync();kick();}
   else if(res&&res.status>=400&&res.status<500&&res.status!==408&&res.status!==429){S.queue.shift();const k=findCheck(p);if(k)k.sent="rejected";save();setSync();kick();}
@@ -162,7 +167,7 @@ async function sendNext(){
 }
 window.addEventListener("online",kick);
 function syncLine(){
-  if(!hasFlow) return "Not linked to the shared sheet yet. Use Download Excel at the end.";
+  if(!hasFlow) return "Not connected to the shared sheet yet. Connect on the start screen.";
   const n=S.queue.length;
   if(!n) return "Everything is in the shared sheet.";
   return sending?`Sending to the shared sheet… ${n} left`:`${n} waiting to send. Will retry when there is signal.`;
@@ -206,8 +211,15 @@ function renderSetup(){
     <div class="field"><label class="label" for="date">Date</label><input type="date" id="date" value="${esc(setup.date)}"></div>
     <button class="btn" id="start" ${ok?"":"disabled"}>Start observation</button>
   </section>
-  <p class="muted" id="sync">${esc(syncLine())}</p>
+  ${hasFlow?`<p class="muted" id="sync">${esc(syncLine())}</p>`:`<section class="panel">
+    <h2>Connect to the shared sheet</h2>
+    <p class="muted">Do this once on each phone. Tap the team link Nathan sent in Teams, or paste it here.</p>
+    <input type="text" id="flowIn" placeholder="Paste the team link" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button class="btn ghost" id="flowGo">Connect</button></section>`}
   ${historyPanel()}`;
+  const fg=$("#flowGo"); if(fg) fg.onclick=()=>{let v=$("#flowIn").value.trim();const m=v.match(/#k=(.+)$/);if(m){try{v=decodeURIComponent(m[1]);}catch(e){}}
+    if(!validFlow(v)){toast("That link doesn't look right. Copy the whole team link and try again.");return;}
+    flowUrl=v;hasFlow=true;try{localStorage.setItem(FLOW_KEY,v);}catch(e){}renderSetup();toast("Connected to the shared sheet.");kick();};
   document.querySelectorAll("[data-campus]").forEach(b=>b.onclick=()=>{setup.campus=b.dataset.campus;renderSetup();});
   document.querySelectorAll("[data-period]").forEach(b=>b.onclick=()=>{setup.period=+b.dataset.period;renderSetup();});
   $("#date").onchange=e=>{setup.date=e.target.value;renderSetup();};
