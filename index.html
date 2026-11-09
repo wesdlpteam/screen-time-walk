@@ -389,13 +389,11 @@ function renderDone(){
     </div>
     <p class="muted" id="sync">${esc(syncLine())}</p>
     <button class="btn" id="newWalk">Start a new walk</button>
-    <button class="btn ghost" id="dl">Download this walk as Excel</button>
     <p class="muted">Each "Yes" for tech counts as about ${MIN_PER_YES} minutes of screen time.</p>
   </section>
   <section class="panel"><h2>By year level</h2><div class="scroll">${table(s.years,"Year",k=>"Year "+k)}</div></section>
   <section class="panel"><h2>By subject</h2><div class="scroll">${table(s.subjects,"Subject",k=>esc(k||"Not noted"))}</div></section>
   ${historyPanel()}`;
-  $("#dl").onclick=()=>download(w);
   $("#newWalk").onclick=()=>{S.walk=null;setup.campus=null;setup.period=null;setup.date=today();save();render();scrollTo({top:0});};
   bindHistory();
 }
