@@ -144,30 +144,27 @@ const clockTime=ts=>new Date(ts).toLocaleTimeString("en-AU",{hour:"numeric",minu
 const niceDate=d=>{const [y,m,dd]=d.split("-");return new Date(+y,+m-1,+dd).toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short",year:"numeric"});};
 function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("on"),2200);}
 
-// send queue: one row per check to the flow, oldest first, retry every 30s
+// send queue: one row per class (rounds as columns), sent when the walk ends; retry every 30s
 let sending=false,retryT=null;
-function payload(w,c,lap){const k=c.checks[lap];
-  return{checkId:w.id+"-"+c.id+"-R"+(lap+1),walkId:w.id,campus:w.campus,date:w.date,period:String(w.period||""),round:String(lap+1),time:clockTime(k.at),
-    room:c.room,year:c.year?"Year "+c.year:"",subject:c.subject,tech:k.tech,distracted:k.dis||"",note:lap===0?(c.note||""):""};}
-function queueLap(w,lap){
-  w.classes.forEach(c=>{const k=c.checks[lap];if(k&&!k.sent){k.sent="queued";S.queue.push(payload(w,c,lap));}});
-  save();kick();
-}
-function findCheck(p){const all=[S.walk].concat(S.history).filter(Boolean);
-  for(const w of all){if(w.id!==p.walkId)continue;for(const c of w.classes){if(p.checkId===w.id+"-"+c.id+"-R"+p.round)return c.checks[+p.round-1];}}return null;}
+function payload(w,c){const v=l=>{const k=c.checks[l];return k&&(k.tech==="Yes"||k.tech==="No")?k.tech:"";};
+  return{rowId:w.id+"-"+c.id,walkId:w.id,campus:w.campus,date:w.date,period:String(w.period||""),
+    room:c.room,year:c.year?"Year "+c.year:"",subject:c.subject||"",r1:v(0),r2:v(1),r3:v(2),note:c.note||""};}
+function queueWalk(w){w.classes.forEach(c=>{if(!c.sent){c.sent="queued";S.queue.push(payload(w,c));}});save();kick();}
+function findClass(p){for(const w of [S.walk].concat(S.history).filter(Boolean)){if(w.id!==p.walkId)continue;for(const c of w.classes)if(p.rowId===w.id+"-"+c.id)return c;}return null;}
 function kick(){if(!hasFlow||sending||!S.queue.length)return;sendNext();}
 async function sendNext(){
   const p=S.queue[0];sending=true;setSync();let res=null;
   try{res=await fetch(flowUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});}catch(e){res=null;}
   sending=false;
-  if(res&&res.ok){S.queue.shift();const k=findCheck(p);if(k)k.sent=true;save();setSync();kick();}
-  else if(res&&res.status>=400&&res.status<500&&res.status!==408&&res.status!==429){S.queue.shift();const k=findCheck(p);if(k)k.sent="rejected";save();setSync();kick();}
+  if(res&&res.ok){S.queue.shift();const k=findClass(p);if(k)k.sent=true;save();setSync();kick();}
+  else if(res&&res.status>=400&&res.status<500&&res.status!==408&&res.status!==429){S.queue.shift();const k=findClass(p);if(k)k.sent="rejected";save();setSync();kick();}
   else{setSync();if(!retryT)retryT=setTimeout(()=>{retryT=null;kick();},30000);}
 }
 window.addEventListener("online",kick);
 function syncLine(){
   if(!hasFlow) return "Not connected to the shared sheet yet. Connect on the start screen.";
   const n=S.queue.length;
+  if(!n&&S.walk&&S.walk.phase!=="done") return "Rounds are saved on this phone. They go to the shared sheet when you finish the walk.";
   if(!n) return "Everything is in the shared sheet.";
   return sending?`Sending to the shared sheet… ${n} left`:`${n} waiting to send. Will retry when there is signal.`;
 }
@@ -281,36 +278,39 @@ function bindDeletes(){document.querySelectorAll("[data-del]").forEach(b=>b.oncl
   if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Tap to confirm";setTimeout(()=>{if(b.isConnected){b.classList.remove("armed");b.textContent="Remove";}},3000);return;}
   S.walk.classes.splice(+b.dataset.del,1);save();render();toast("Class removed");});}
 
-// laps 2 and 3: same route, one class at a time
+// rounds 2 and 3: pick the room you're at from round 1's list; done rooms drop off
 function renderLapN(){
-  const w=S.walk,L=w.lap,i=w.stop,c=w.classes[i],ck=c.checks[L]||{tech:null,dis:null};
+  const w=S.walk,L=w.lap,left=w.classes.map((c,i)=>({c,i})).filter(x=>!x.c.checks[L]),done=w.classes.map((c,i)=>({c,i})).filter(x=>x.c.checks[L]);
+  const picked=w.pick!=null&&w.classes[w.pick]&&!w.classes[w.pick].checks[L]?w.classes[w.pick]:null;
   const prevTxt=k=>!k?"not checked":k.tech==="Yes"?"iPads/laptops in use":k.tech==="No"?"no devices":"not seen";
-  $("#app").innerHTML=`
+  const top=picked?`
   <section class="panel">
-    <div class="progress" aria-hidden="true">${w.classes.map((x,j)=>`<i class="${x.checks[L]&&x.checks[L].tech?"done":j===i?"now":""}"></i>`).join("")}</div>
-    <div class="stop"><span class="muted">Round ${L+1} · stop ${i+1} of ${w.classes.length}</span><span class="room">${esc(c.room)}</span><span>${esc(classLabel(c,true))}</span>
-      <span class="muted">Round 1: ${prevTxt(c.checks[0])}${L===2?", round 2: "+prevTxt(c.checks[1]):""}</span></div>
-    ${ynBlock("Using iPads/laptops?","tech",ck.tech,false)}
+    <div class="stop"><span class="muted">Round ${L+1}</span><span class="room">${esc(picked.room)}</span><span>${esc(classLabel(picked,true))}</span>
+      <span class="muted">Round 1: ${prevTxt(picked.checks[0])}${L===2?", round 2: "+prevTxt(picked.checks[1]):""}</span></div>
+    ${ynBlock("Using iPads/laptops?","tech",null,false)}
+    <button class="btn ghost" id="unpick">Pick a different room</button>
+  </section>`:`
+  <section class="panel">
+    <div><h1>Round ${L+1}: which room?</h1><p class="muted">${left.length?`Tap the room you're at. ${left.length} to go.`:"You've checked every room from round 1."}</p></div>
+    ${left.length?`<div class="campus" role="group" aria-label="Rooms">${left.map(x=>`<button class="chip" data-pick="${x.i}"><b>${esc(x.c.room)}</b> · ${esc(classLabel(x.c,false))}</button>`).join("")}</div>`:""}
     <button class="btn gold" id="endEarly">Finish round ${L+1}</button>
-    <button class="btn ghost" id="prev" ${i===0?"disabled":""}>Back to previous class</button>
-    <p class="muted">Rooms you don't reach this round stay blank.</p>
-  </section>
-  <section class="panel"><h2>Round ${L+1} so far</h2>${classList(L,false)}</section>
+    ${left.length?`<p class="muted">Rooms you don't get to this round stay blank.</p>`:""}
+  </section>`;
+  $("#app").innerHTML=top+`
+  ${done.length?`<section class="panel"><h2>Round ${L+1} so far (${done.length})</h2><ul class="list">${done.map(x=>`<li><div class="who"><b>${esc(x.c.room)}</b> · ${esc(classLabel(x.c,false))}</div>${tagFor(x.c.checks[L])}<button class="del" data-undo="${x.i}">Change</button></li>`).join("")}</ul></section>`:""}
   ${endWalkBlock()}`;
   bindEndWalk();
-  const commit=(tech,dis)=>{c.checks[L]={tech,dis:tech==="Yes"?dis:"",at:Date.now()};save();next();};
-  bindYN(v=>commit(v,""));
-  $("#prev").onclick=()=>{w.stop=Math.max(0,i-1);save();renderLapN();};
-  $("#endEarly").onclick=()=>endLap();
-  function next(){const r=c.room;
-    if(i+1<w.classes.length){w.stop=i+1;save();renderLapN();scrollTo({top:0});toast("Saved "+r+".");}else endLap();}
+  document.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>{w.pick=+b.dataset.pick;save();renderLapN();scrollTo({top:0});});
+  document.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>{w.classes[+b.dataset.undo].checks[L]=null;w.pick=+b.dataset.undo;save();renderLapN();scrollTo({top:0});});
+  const u=$("#unpick"); if(u) u.onclick=()=>{w.pick=null;save();renderLapN();};
+  const e=$("#endEarly"); if(e) e.onclick=()=>endLap();
+  if(picked) bindYN(v=>{picked.checks[L]={tech:v,dis:"",at:Date.now()};w.pick=null;save();renderLapN();scrollTo({top:0});toast("Saved "+picked.room+".");});
 }
 function endLap(){
   const w=S.walk; if(w.lap===0&&!w.classes.length) return;
   w.classes.forEach(c=>{const k=c.checks[w.lap];if(k&&k.tech==="Yes"&&!k.dis)k.dis="";});
-  w.laps[w.lap].end=Date.now();
-  queueLap(w,w.lap);
-  if(w.lap===2){w.phase="done";w.finishedAt=Date.now();S.history=[w].concat(S.history.filter(h=>h.id!==w.id)).slice(0,20);if(wake)wake.release().catch(()=>{});}
+  w.laps[w.lap].end=Date.now();w.pick=null;
+  if(w.lap===2){queueWalk(w);w.phase="done";w.finishedAt=Date.now();S.history=[w].concat(S.history.filter(h=>h.id!==w.id)).slice(0,20);if(wake)wake.release().catch(()=>{});}
   else w.phase="between";
   save();render();tick();scrollTo({top:0});
 }
@@ -320,7 +320,7 @@ let endAsk=false;
 function endWalkBlock(){
   if(!endAsk) return `<button class="link" id="endWalk">End this walk</button>`;
   return `<section class="panel"><h2>End this walk?</h2>
-    <p class="muted">Rounds you already finished are in the shared sheet either way.</p>
+    <p class="muted">Saving sends this walk to the shared sheet now. Rounds you didn't do stay blank. Deleting means nothing from this walk goes to the sheet.</p>
     <button class="btn" id="endKeep">Save what I've done and end</button>
     <button class="btn ghost" id="endDrop">Delete this walk</button>
     <button class="link" id="endNo">Keep walking</button></section>`;
@@ -329,7 +329,7 @@ function bindEndWalk(){
   const a=$("#endWalk"); if(a) a.onclick=()=>{endAsk=true;render();setTimeout(()=>{const k=$("#endKeep");if(k)k.scrollIntoView({block:"center"});},0);};
   const n=$("#endNo"); if(n) n.onclick=()=>{endAsk=false;render();};
   const k=$("#endKeep"); if(k) k.onclick=()=>{endAsk=false;const w=S.walk;
-    if(w.phase==="lap"){w.classes.forEach(c=>{const x=c.checks[w.lap];if(x&&x.tech==="Yes"&&!x.dis)x.dis="";});w.laps[w.lap].end=Date.now();queueLap(w,w.lap);}
+    if(w.phase==="lap"){w.laps[w.lap].end=Date.now();}w.pick=null;queueWalk(w);
     w.phase="done";w.finishedAt=Date.now();S.history=[w].concat(S.history.filter(h=>h.id!==w.id)).slice(0,20);
     if(wake)wake.release().catch(()=>{});save();render();scrollTo({top:0});toast("Walk ended.");};
   const d=$("#endDrop"); if(d) d.onclick=()=>{endAsk=false;const id=S.walk.id;
@@ -352,7 +352,7 @@ function renderBetween(){
   <section class="panel"><h2>Round ${L+1} results</h2>${classList(L,false)}</section>
   ${endWalkBlock()}`;
   bindEndWalk();
-  $("#go").onclick=()=>{w.lap=L+1;w.stop=0;w.phase="lap";w.laps[w.lap]={start:Date.now(),end:null};save();render();tick();toast("Round "+(L+2)+" started.");};
+  $("#go").onclick=()=>{w.lap=L+1;w.stop=0;w.phase="lap";w.laps[w.lap]={start:Date.now(),end:null};w.pick=null;save();render();tick();toast("Round "+(L+2)+" started.");};
   const b=$("#back"); if(b) b.onclick=()=>{w.phase="lap";w.laps[0].end=null;save();render();tick();};
   tick();
 }
@@ -401,13 +401,16 @@ function table(rows,head,fmt){
 // walks kept on this phone
 function historyPanel(){
   const h=S.history.filter(x=>!S.walk||x.id!==S.walk.id); if(!h.length) return "";
-  const sentOf=w=>{let n=0,t=0;w.classes.forEach(c=>c.checks.forEach(k=>{if(k){t++;if(k.sent===true)n++;}}));return hasFlow?(n===t?"In shared sheet":n+" of "+t+" sent"):"Saved on this phone";};
+  const sentOf=w=>{let n=0,t=w.classes.length;w.classes.forEach(c=>{if(c.sent===true)n++;});return hasFlow?(n===t?"In shared sheet":n+" of "+t+" sent"):"Saved on this phone";};
   return `<section class="panel"><h2>Earlier walks on this phone</h2>
     <ul class="list">${h.map(x=>`<li><div class="who"><b>${esc(x.campus)}</b><br><span class="muted">Period ${x.period} · ${niceDate(x.date)} · ${x.classes.length} ${x.classes.length===1?"class":"classes"} · ${sentOf(x)}</span></div></li>`).join("")}</ul></section>`;
 }
 function bindHistory(){}
 
 
+(function(){const old=S.queue.filter(p=>p.round!==undefined);if(!old.length)return;
+  const ids=[...new Set(old.map(p=>p.walkId))];S.queue=S.queue.filter(p=>p.round===undefined);
+  ids.forEach(id=>{const w=S.history.find(h=>h.id===id);if(w&&w.phase==="done"){w.classes.forEach(c=>{c.sent=false;});queueWalk(w);}});save();})();
 render();tick();keepAwake();kick();
 </script>
 </body>
