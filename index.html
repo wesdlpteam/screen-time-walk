@@ -249,7 +249,8 @@ function renderLap1(){
     <button class="btn gold" id="endLap" ${lap1Ready(f)||(w.classes.length&&lap1Blank(f))?"":"disabled"}>${lap1Ready(f)?"Save and finish round 1":"Finish round 1"}</button>
     <p class="muted">Finish round 1 whenever you're done. Round 2 visits the same rooms.</p>
   </section>
-  ${w.classes.length?`<section class="panel"><h2>Round 1 so far (${w.classes.length})</h2>${classList(0,true)}</section>`:""}`;
+  ${w.classes.length?`<section class="panel"><h2>Round 1 so far (${w.classes.length})</h2>${classList(0,true)}</section>`:""}
+  ${endWalkBlock()}`;
   $("#room").oninput=e=>{f.room=e.target.value;upd();};
   $("#subj").oninput=e=>{f.subject=e.target.value;upd();};
   $("#note").oninput=e=>{f.note=e.target.value;};
@@ -264,6 +265,7 @@ function renderLap1(){
   };
   $("#endLap").onclick=()=>{if(lap1Ready(f))$("#saveC").click();if(S.walk.classes.length)endLap();};
   bindDeletes();
+  bindEndWalk();
 }
 function ynBlock(label,key,val,dis){
   return `<div class="field"><span class="label">${label}</span><div class="yn${dis?" dis":""}" role="group" aria-label="${esc(label)}">
@@ -295,7 +297,9 @@ function renderLapN(){
     <button class="btn ghost" id="prev" ${i===0?"disabled":""}>Back to previous class</button>
     <p class="muted">Rooms you don't reach this round stay blank.</p>
   </section>
-  <section class="panel"><h2>Round ${L+1} so far</h2>${classList(L,false)}</section>`;
+  <section class="panel"><h2>Round ${L+1} so far</h2>${classList(L,false)}</section>
+  ${endWalkBlock()}`;
+  bindEndWalk();
   const commit=(tech,dis)=>{c.checks[L]={tech,dis:tech==="Yes"?dis:"",at:Date.now()};save();next();};
   bindYN(v=>{if(v==="No")commit("No","");else{c.checks[L]={tech:"Yes",dis:null,at:Date.now()};save();renderLapN();}},v=>commit("Yes",v));
   $("#prev").onclick=()=>{w.stop=Math.max(0,i-1);save();renderLapN();};
@@ -313,6 +317,28 @@ function endLap(){
   save();render();tick();scrollTo({top:0});
 }
 
+// end a walk early: keep what's done, or delete it
+let endAsk=false;
+function endWalkBlock(){
+  if(!endAsk) return `<button class="link" id="endWalk">End this walk</button>`;
+  return `<section class="panel"><h2>End this walk?</h2>
+    <p class="muted">Rounds you already finished are in the shared sheet either way.</p>
+    <button class="btn" id="endKeep">Save what I've done and end</button>
+    <button class="btn ghost" id="endDrop">Delete this walk</button>
+    <button class="link" id="endNo">Keep walking</button></section>`;
+}
+function bindEndWalk(){
+  const a=$("#endWalk"); if(a) a.onclick=()=>{endAsk=true;render();setTimeout(()=>{const k=$("#endKeep");if(k)k.scrollIntoView({block:"center"});},0);};
+  const n=$("#endNo"); if(n) n.onclick=()=>{endAsk=false;render();};
+  const k=$("#endKeep"); if(k) k.onclick=()=>{endAsk=false;const w=S.walk;
+    if(w.phase==="lap"){w.classes.forEach(c=>{const x=c.checks[w.lap];if(x&&x.tech==="Yes"&&!x.dis)x.dis="";});w.laps[w.lap].end=Date.now();queueLap(w,w.lap);}
+    w.phase="done";w.finishedAt=Date.now();S.history=[w].concat(S.history.filter(h=>h.id!==w.id)).slice(0,20);
+    if(wake)wake.release().catch(()=>{});save();render();scrollTo({top:0});toast("Walk ended.");};
+  const d=$("#endDrop"); if(d) d.onclick=()=>{endAsk=false;const id=S.walk.id;
+    S.queue=S.queue.filter(p=>p.walkId!==id);S.walk=null;setup.campus=null;setup.period=null;
+    if(wake)wake.release().catch(()=>{});save();render();scrollTo({top:0});toast("Walk deleted.");};
+}
+
 // between laps
 function renderBetween(){
   const w=S.walk,L=w.lap,took=w.laps[L].end-w.laps[L].start;
@@ -325,7 +351,9 @@ function renderBetween(){
     ${L===0?`<button class="link" id="back">Go back to round 1 to add a class</button>`:""}
   </section>
   <p class="muted" id="sync">${esc(syncLine())}</p>
-  <section class="panel"><h2>Round ${L+1} results</h2>${classList(L,false)}</section>`;
+  <section class="panel"><h2>Round ${L+1} results</h2>${classList(L,false)}</section>
+  ${endWalkBlock()}`;
+  bindEndWalk();
   $("#go").onclick=()=>{w.lap=L+1;w.stop=0;w.phase="lap";w.laps[w.lap]={start:Date.now(),end:null};save();render();tick();toast("Round "+(L+2)+" started.");};
   const b=$("#back"); if(b) b.onclick=()=>{w.phase="lap";w.laps[0].end=null;save();render();tick();};
   tick();
