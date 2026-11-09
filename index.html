@@ -276,13 +276,12 @@ function renderLapN(){
       <span class="muted">Round 1: ${prevTxt(c.checks[0])}${L===2?", round 2: "+prevTxt(c.checks[1]):""}</span></div>
     ${ynBlock("Using tech?","tech",ck.tech,false)}
     ${ck.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",ck.dis,true):""}
-    <div class="row"><button class="btn ghost" id="prev" ${i===0?"disabled":""}>Back</button><button class="btn ghost" id="notSeen">Class not there</button></div>
+    <button class="btn ghost" id="prev" ${i===0?"disabled":""}>Back to previous class</button>
   </section>
   <section class="panel"><h2>Round ${L+1} so far</h2>${classList(L,false)}
     <button class="link" id="endEarly">Finish round ${L+1} now (unchecked classes stay blank)</button></section>`;
   const commit=(tech,dis)=>{c.checks[L]={tech,dis:tech==="Yes"?dis:"",at:Date.now()};save();next();};
   bindYN(v=>{if(v==="No")commit("No","");else{c.checks[L]={tech:"Yes",dis:null,at:Date.now()};save();renderLapN();}},v=>commit("Yes",v));
-  $("#notSeen").onclick=()=>commit("Not seen","");
   $("#prev").onclick=()=>{w.stop=Math.max(0,i-1);save();renderLapN();};
   $("#endEarly").onclick=()=>endLap();
   function next(){const r=c.room;
