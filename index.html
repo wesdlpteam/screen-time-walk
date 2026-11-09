@@ -231,7 +231,7 @@ function renderSetup(){
 }
 
 // lap 1: record each class as you reach it
-function lap1Ready(f){return f.room.trim()&&f.tech&&(f.tech==="No"||f.dis);}
+function lap1Ready(f){return f.room.trim()&&f.tech;}
 function classLabel(c,long){const y=c.year?(long?"Year ":"Yr ")+c.year:"";const t=[y,c.subject].filter(Boolean).join(" ");return t||"Year and subject not noted";}
 function lap1Blank(f){return !f.room.trim()&&!f.year&&!f.subject.trim()&&!f.tech&&!f.note.trim();}
 function renderLap1(){
@@ -243,7 +243,6 @@ function renderLap1(){
     <div class="field"><span class="label">Year level <em>(optional)</em></span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
     <div class="field"><label class="label" for="subj">Subject <em>(optional)</em></label><input type="text" id="subj" value="${esc(f.subject)}" placeholder="e.g. Science" autocapitalize="words" autocomplete="off"></div>
     ${ynBlock("Using iPads/laptops?","tech",f.tech,false)}
-    ${f.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",f.dis,true):""}
     <div class="field"><label class="label" for="note">Note <em>(optional)</em></label><input type="text" id="note" value="${esc(f.note)}" placeholder="e.g. two students on games"></div>
     <button class="btn" id="saveC" ${lap1Ready(f)?"":"disabled"}>Save and go to next class</button>
     <button class="btn gold" id="endLap" ${lap1Ready(f)||(w.classes.length&&lap1Blank(f))?"":"disabled"}>${lap1Ready(f)?"Save and finish round 1":"Finish round 1"}</button>
@@ -255,12 +254,12 @@ function renderLap1(){
   $("#subj").oninput=e=>{f.subject=e.target.value;upd();};
   $("#note").oninput=e=>{f.note=e.target.value;};
   document.querySelectorAll("[data-year]").forEach(b=>b.onclick=()=>{f.year=f.year===+b.dataset.year?null:+b.dataset.year;renderLap1();});
-  bindYN(v=>{f.tech=v;if(v==="No")f.dis=null;renderLap1();},v=>{f.dis=v;renderLap1();});
+  bindYN(v=>{f.tech=v;renderLap1();});
   function upd(){$("#saveC").disabled=!lap1Ready(f);}
   $("#saveC").onclick=()=>{
     const subj=f.subject.trim(),r=f.room.trim().toUpperCase();
     w.classes.push({id:"c"+Date.now().toString(36),room:r,year:f.year,subject:subj,note:f.note.trim(),
-      checks:[{tech:f.tech,dis:f.tech==="Yes"?f.dis:"",at:Date.now()},null,null]});
+      checks:[{tech:f.tech,dis:"",at:Date.now()},null,null]});
     form=freshForm(); save(); renderLap1(); scrollTo({top:0}); toast("Saved "+r+". Next class.");
   };
   $("#endLap").onclick=()=>{if(lap1Ready(f))$("#saveC").click();if(S.walk.classes.length)endLap();};
@@ -273,7 +272,7 @@ function ynBlock(label,key,val,dis){
 }
 function bindYN(onTech,onDis){document.querySelectorAll("[data-yn]").forEach(b=>b.onclick=()=>(b.dataset.yn==="tech"?onTech:onDis)(b.dataset.v));}
 function tagFor(c){if(!c)return `<span class="tag s">Not checked</span>`;if(c.tech==="Not seen")return `<span class="tag s">Not seen</span>`;
-  if(c.tech==="No")return `<span class="tag n">No devices</span>`;return `<span class="tag y">Devices</span>${c.dis==="Yes"?` <span class="tag d">Distracted</span>`:""}`;}
+  if(c.tech==="No")return `<span class="tag n">No devices</span>`;return `<span class="tag y">Devices</span>`;}
 function classList(lap,canDelete){
   return `<ul class="list">${S.walk.classes.map((c,i)=>`<li><div class="who"><b>${esc(c.room)}</b> · ${esc(classLabel(c,false))}</div>${tagFor(c.checks[lap])}
     ${canDelete&&!c.checks[0].sent?`<button class="del" data-del="${i}">Remove</button>`:""}</li>`).join("")}</ul>`;
@@ -288,11 +287,10 @@ function renderLapN(){
   const prevTxt=k=>!k?"not checked":k.tech==="Yes"?"iPads/laptops in use":k.tech==="No"?"no devices":"not seen";
   $("#app").innerHTML=`
   <section class="panel">
-    <div class="progress" aria-hidden="true">${w.classes.map((x,j)=>`<i class="${x.checks[L]&&x.checks[L].tech&&(x.checks[L].tech!=="Yes"||x.checks[L].dis)?"done":j===i?"now":""}"></i>`).join("")}</div>
+    <div class="progress" aria-hidden="true">${w.classes.map((x,j)=>`<i class="${x.checks[L]&&x.checks[L].tech?"done":j===i?"now":""}"></i>`).join("")}</div>
     <div class="stop"><span class="muted">Round ${L+1} · stop ${i+1} of ${w.classes.length}</span><span class="room">${esc(c.room)}</span><span>${esc(classLabel(c,true))}</span>
       <span class="muted">Round 1: ${prevTxt(c.checks[0])}${L===2?", round 2: "+prevTxt(c.checks[1]):""}</span></div>
     ${ynBlock("Using iPads/laptops?","tech",ck.tech,false)}
-    ${ck.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",ck.dis,true):""}
     <button class="btn gold" id="endEarly">Finish round ${L+1}</button>
     <button class="btn ghost" id="prev" ${i===0?"disabled":""}>Back to previous class</button>
     <p class="muted">Rooms you don't reach this round stay blank.</p>
@@ -301,7 +299,7 @@ function renderLapN(){
   ${endWalkBlock()}`;
   bindEndWalk();
   const commit=(tech,dis)=>{c.checks[L]={tech,dis:tech==="Yes"?dis:"",at:Date.now()};save();next();};
-  bindYN(v=>{if(v==="No")commit("No","");else{c.checks[L]={tech:"Yes",dis:null,at:Date.now()};save();renderLapN();}},v=>commit("Yes",v));
+  bindYN(v=>commit(v,""));
   $("#prev").onclick=()=>{w.stop=Math.max(0,i-1);save();renderLapN();};
   $("#endEarly").onclick=()=>endLap();
   function next(){const r=c.room;
@@ -382,7 +380,6 @@ function renderDone(){
       <div>Classes visited</div><div>${o.classes}</div>
       <div>Checks made</div><div>${o.checks}</div>
       <div>Checks with iPads/laptops in use</div><div>${o.tech} (${pct(o.pctTech)})</div>
-      <div>Device checks with someone distracted</div><div>${o.dis} (${pct(o.pctDis)})</div>
       <div>Estimated screen minutes, all classes</div><div>${o.mins}</div>
       <div>Average per class (out of 30 min)</div><div>${o.classes?(o.mins/o.classes).toFixed(1):"–"}</div>
     </div>
@@ -397,8 +394,8 @@ function renderDone(){
   bindHistory();
 }
 function table(rows,head,fmt){
-  return `<table><thead><tr><th>${head}</th><th class="n">Classes</th><th class="n">Devices</th><th class="n">Mins</th><th class="n">Distracted</th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td>${fmt(r.key)}</td><td class="n">${r.classes}</td><td class="n">${pct(r.pctTech)}</td><td class="n">${r.mins}</td><td class="n">${pct(r.pctDis)}</td></tr>`).join("")}</tbody></table>`;
+  return `<table><thead><tr><th>${head}</th><th class="n">Classes</th><th class="n">Devices</th><th class="n">Mins</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${fmt(r.key)}</td><td class="n">${r.classes}</td><td class="n">${pct(r.pctTech)}</td><td class="n">${r.mins}</td></tr>`).join("")}</tbody></table>`;
 }
 
 // walks kept on this phone
