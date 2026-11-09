@@ -122,7 +122,7 @@ const CONFIG={flowUrl:""};
 const CAMPUSES=["Glen Waverley","St Kilda Road","Elsternwick"];
 const YEARS=[5,6,7,8,9,10,11,12];
 const SUBJECTS=["English","Maths","Science","Humanities","Languages","Visual Arts","Music","Drama","Health & PE","Digital Tech","Design Tech","PYP Homeroom","Library"];
-const LAP_GAP_MIN=10, MIN_PER_YES=10, KEY="stw-site-v1";
+const MIN_PER_YES=10, KEY="stw-site-v1";
 const hasFlow=!!CONFIG.flowUrl;
 
 // state + storage
@@ -142,14 +142,14 @@ function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("on");c
 // send queue: one row per check to the flow, oldest first, retry every 30s
 let sending=false,retryT=null;
 function payload(w,c,lap){const k=c.checks[lap];
-  return{checkId:w.id+"-"+c.id+"-L"+(lap+1),walkId:w.id,campus:w.campus,date:w.date,lap:String(lap+1),time:clockTime(k.at),
+  return{checkId:w.id+"-"+c.id+"-R"+(lap+1),walkId:w.id,campus:w.campus,date:w.date,round:String(lap+1),time:clockTime(k.at),
     room:c.room,year:"Year "+c.year,subject:c.subject,tech:k.tech,distracted:k.dis||"",note:lap===0?(c.note||""):""};}
 function queueLap(w,lap){
   w.classes.forEach(c=>{const k=c.checks[lap];if(k&&!k.sent){k.sent="queued";S.queue.push(payload(w,c,lap));}});
   save();kick();
 }
 function findCheck(p){const all=[S.walk].concat(S.history).filter(Boolean);
-  for(const w of all){if(w.id!==p.walkId)continue;for(const c of w.classes){if(p.checkId===w.id+"-"+c.id+"-L"+p.lap)return c.checks[+p.lap-1];}}return null;}
+  for(const w of all){if(w.id!==p.walkId)continue;for(const c of w.classes){if(p.checkId===w.id+"-"+c.id+"-R"+p.round)return c.checks[+p.round-1];}}return null;}
 function kick(){if(!hasFlow||sending||!S.queue.length)return;sendNext();}
 async function sendNext(){
   const p=S.queue[0];sending=true;setSync();let res=null;
@@ -186,8 +186,8 @@ function render(){
 function tick(){
   const w=S.walk; if(!w||w.phase==="done") return;
   $("#clockT").textContent=mmss(Date.now()-w.startedAt);
-  $("#clockL").textContent=w.phase==="between"?"Between laps":"Lap "+(w.lap+1)+" of 3";
-  const d=$("#dueT"); if(d){const due=w.laps[w.lap].start+LAP_GAP_MIN*60000,left=due-Date.now();d.textContent=left>0?mmss(left):"Now";$("#dueL").textContent=left>0?"until lap "+(w.lap+2)+" is due ("+clockTime(due)+")":"Lap "+(w.lap+2)+" is due. Head off when ready.";}
+  $("#clockL").textContent=w.phase==="between"?"Between rounds":"Round "+(w.lap+1)+" of 3";
+  const b=$("#betT"); if(b) b.textContent=mmss(Date.now()-w.startedAt);
 }
 setInterval(tick,1000);
 
@@ -197,7 +197,7 @@ function renderSetup(){
   $("#app").innerHTML=`
   <section class="panel">
     <h1>New walk</h1>
-    <p class="muted">Three laps of the same route, about ${LAP_GAP_MIN} minutes apart. The timer starts when you tap Start.</p>
+    <p class="muted">Three rounds of the same route. The stopwatch starts when you tap Start observation and keeps running until you finish.</p>
     <div class="field"><span class="label">Campus</span>
       <div class="campus" role="group" aria-label="Campus">${CAMPUSES.map(c=>`<button class="chip" data-campus="${esc(c)}" aria-pressed="${setup.campus===c}">${esc(c)}</button>`).join("")}</div></div>
     <div class="field"><label class="label" for="date">Date</label><input type="date" id="date" value="${esc(setup.date)}"></div>
@@ -210,7 +210,7 @@ function renderSetup(){
   $("#start").onclick=()=>{
     const now=Date.now();
     S.walk={id:"w"+now.toString(36),campus:setup.campus,date:setup.date,startedAt:now,laps:[{start:now,end:null}],lap:0,stop:0,phase:"lap",classes:[]};
-    form=freshForm();save();keepAwake();render();tick();toast("Timer started. Lap 1 of 3.");
+    form=freshForm();save();keepAwake();render();tick();toast("Stopwatch started. Round 1 of 3.");
   };
   bindHistory();
 }
@@ -221,7 +221,7 @@ function renderLap1(){
   const w=S.walk,f=form;
   $("#app").innerHTML=`
   <section class="panel">
-    <div><h1>Lap 1: class ${w.classes.length+1}</h1><p class="muted">Fill this in at the doorway, then save and walk on.</p></div>
+    <div><h1>Round 1: class ${w.classes.length+1}</h1><p class="muted">Fill this in at the doorway, then save and walk on.</p></div>
     <div class="field"><label class="label" for="room">Room</label><input type="text" id="room" value="${esc(f.room)}" placeholder="e.g. B204" autocapitalize="characters" autocomplete="off"></div>
     <div class="field"><span class="label">Year level</span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
     <div class="field"><span class="label">Subject</span><div class="chips" role="group" aria-label="Subject">${SUBJECTS.concat("Other").map(s=>`<button class="chip" data-sub="${esc(s)}" aria-pressed="${f.subject===s}">${esc(s)}</button>`).join("")}</div>
@@ -231,8 +231,8 @@ function renderLap1(){
     <div class="field"><label class="label" for="note">Note <em>(optional)</em></label><input type="text" id="note" value="${esc(f.note)}" placeholder="e.g. two students on games"></div>
     <button class="btn" id="saveC" ${lap1Ready(f)?"":"disabled"}>Save and go to next class</button>
   </section>
-  ${w.classes.length?`<section class="panel"><h2>Lap 1 so far (${w.classes.length})</h2>${classList(0,true)}
-    <button class="btn gold" id="endLap">Finish lap 1</button>
+  ${w.classes.length?`<section class="panel"><h2>Round 1 so far (${w.classes.length})</h2>${classList(0,true)}
+    <button class="btn gold" id="endLap">Finish round 1</button>
     <p class="muted">Finish once you have reached the last class on your route.</p></section>`:""}`;
   $("#room").oninput=e=>{f.room=e.target.value;upd();};
   const o=$("#other"); if(o) o.oninput=e=>{f.other=e.target.value;upd();};
@@ -272,14 +272,14 @@ function renderLapN(){
   $("#app").innerHTML=`
   <section class="panel">
     <div class="progress" aria-hidden="true">${w.classes.map((x,j)=>`<i class="${x.checks[L]&&x.checks[L].tech&&(x.checks[L].tech!=="Yes"||x.checks[L].dis)?"done":j===i?"now":""}"></i>`).join("")}</div>
-    <div class="stop"><span class="muted">Lap ${L+1} · stop ${i+1} of ${w.classes.length}</span><span class="room">${esc(c.room)}</span><span>Year ${c.year} ${esc(c.subject)}</span>
-      <span class="muted">Lap 1: ${prevTxt(c.checks[0])}${L===2?", lap 2: "+prevTxt(c.checks[1]):""}</span></div>
+    <div class="stop"><span class="muted">Round ${L+1} · stop ${i+1} of ${w.classes.length}</span><span class="room">${esc(c.room)}</span><span>Year ${c.year} ${esc(c.subject)}</span>
+      <span class="muted">Round 1: ${prevTxt(c.checks[0])}${L===2?", round 2: "+prevTxt(c.checks[1]):""}</span></div>
     ${ynBlock("Using tech?","tech",ck.tech,false)}
     ${ck.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",ck.dis,true):""}
     <div class="row"><button class="btn ghost" id="prev" ${i===0?"disabled":""}>Back</button><button class="btn ghost" id="notSeen">Class not there</button></div>
   </section>
-  <section class="panel"><h2>Lap ${L+1} so far</h2>${classList(L,false)}
-    <button class="link" id="endEarly">Finish lap ${L+1} now (unchecked classes stay blank)</button></section>`;
+  <section class="panel"><h2>Round ${L+1} so far</h2>${classList(L,false)}
+    <button class="link" id="endEarly">Finish round ${L+1} now (unchecked classes stay blank)</button></section>`;
   const commit=(tech,dis)=>{c.checks[L]={tech,dis:tech==="Yes"?dis:"",at:Date.now()};save();next();};
   bindYN(v=>{if(v==="No")commit("No","");else{c.checks[L]={tech:"Yes",dis:null,at:Date.now()};save();renderLapN();}},v=>commit("Yes",v));
   $("#notSeen").onclick=()=>commit("Not seen","");
@@ -303,15 +303,15 @@ function renderBetween(){
   const w=S.walk,L=w.lap,took=w.laps[L].end-w.laps[L].start;
   $("#app").innerHTML=`
   <section class="panel">
-    <h1>Lap ${L+1} done</h1>
-    <p>${w.classes.length} classes in ${mmss(took)}.</p>
-    <div><div class="due" id="dueT">--:--</div><p class="muted" id="dueL"></p></div>
-    <button class="btn" id="go">Start lap ${L+2}</button>
-    ${L===0?`<button class="link" id="back">Go back to lap 1 to add a class</button>`:""}
+    <h1>Round ${L+1} finished</h1>
+    <p>${w.classes.length} ${w.classes.length===1?"class":"classes"}. Round ${L+1} took ${mmss(took)}.</p>
+    <div><div class="due" id="betT">${mmss(Date.now()-w.startedAt)}</div><p class="muted">Total time since you started. Begin round ${L+2} when you're ready.</p></div>
+    <button class="btn" id="go">Begin round ${L+2}</button>
+    ${L===0?`<button class="link" id="back">Go back to round 1 to add a class</button>`:""}
   </section>
   <p class="muted" id="sync">${esc(syncLine())}</p>
-  <section class="panel"><h2>Lap ${L+1} results</h2>${classList(L,false)}</section>`;
-  $("#go").onclick=()=>{w.lap=L+1;w.stop=0;w.phase="lap";w.laps[w.lap]={start:Date.now(),end:null};save();render();tick();toast("Lap "+(L+2)+" started.");};
+  <section class="panel"><h2>Round ${L+1} results</h2>${classList(L,false)}</section>`;
+  $("#go").onclick=()=>{w.lap=L+1;w.stop=0;w.phase="lap";w.laps[w.lap]={start:Date.now(),end:null};save();render();tick();toast("Round "+(L+2)+" started.");};
   const b=$("#back"); if(b) b.onclick=()=>{w.phase="lap";w.laps[0].end=null;save();render();tick();};
   tick();
 }
@@ -323,7 +323,7 @@ function stats(classes){
     return{checks,tech,pctTech:checks?tech/checks:null,dis,pctDis:tech?dis/tech:null,mins:tech*MIN_PER_YES};};
   const by=(keyFn,keys)=>keys.map(k=>Object.assign({key:k,classes:classes.filter(c=>keyFn(c)===k).length},pack(all.filter(x=>keyFn(x.c)===k)))).filter(r=>r.classes);
   return{overall:Object.assign({classes:classes.length},pack(all)),
-    laps:[0,1,2].map(l=>Object.assign({key:"Lap "+(l+1)},pack(all.filter(x=>x.l===l)))),
+    laps:[0,1,2].map(l=>Object.assign({key:"Round "+(l+1)},pack(all.filter(x=>x.l===l)))),
     years:by(c=>c.year,YEARS),subjects:by(c=>c.subject,[...new Set(classes.map(c=>c.subject))])};
 }
 const pct=v=>v==null?"–":Math.round(v*100)+"%";
@@ -372,9 +372,9 @@ function bindHistory(){document.querySelectorAll("[data-dlone]").forEach(b=>b.on
 // excel download of one walk (backup; the shared sheet is the main record)
 function download(w){
   if(typeof XLSX==="undefined"){toast("Excel maker didn't load. Check your signal.");return;}
-  const rows=[["Check ID","Campus","Date","Lap","Time","Room","Year level","Subject","Using tech","Distracted","Note"]];
+  const rows=[["Check ID","Campus","Date","Round","Time","Room","Year level","Subject","Using tech","Distracted","Note"]];
   [0,1,2].forEach(l=>w.classes.forEach(c=>{const k=c.checks[l];if(!k)return;const p=payload(w,c,l);
-    rows.push([p.checkId,p.campus,p.date,+p.lap,p.time,p.room,p.year,p.subject,p.tech,p.distracted,p.note]);}));
+    rows.push([p.checkId,p.campus,p.date,+p.round,p.time,p.room,p.year,p.subject,p.tech,p.distracted,p.note]);}));
   const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
   ws["!cols"]=[{wch:22},{wch:14},{wch:11},{wch:5},{wch:9},{wch:8},{wch:9},{wch:16},{wch:10},{wch:10},{wch:30}];
   XLSX.utils.book_append_sheet(wb,ws,"Checks");
