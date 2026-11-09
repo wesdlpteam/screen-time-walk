@@ -115,7 +115,6 @@ td.n,th.n{text-align:right}
 <main id="app"></main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // flow link is never in this file: each phone stores it once (pasted, or from a #k= team link)
 const FLOW_KEY="stw-flow";
@@ -407,21 +406,10 @@ function historyPanel(){
   const h=S.history.filter(x=>!S.walk||x.id!==S.walk.id); if(!h.length) return "";
   const sentOf=w=>{let n=0,t=0;w.classes.forEach(c=>c.checks.forEach(k=>{if(k){t++;if(k.sent===true)n++;}}));return hasFlow?(n===t?"In shared sheet":n+" of "+t+" sent"):"Saved on this phone";};
   return `<section class="panel"><h2>Earlier walks on this phone</h2>
-    <ul class="list">${h.map(x=>`<li><div class="who"><b>${esc(x.campus)}</b><br><span class="muted">Period ${x.period} · ${niceDate(x.date)} · ${x.classes.length} classes · ${sentOf(x)}</span></div><button class="del" data-dlone="${esc(x.id)}">Excel</button></li>`).join("")}</ul></section>`;
+    <ul class="list">${h.map(x=>`<li><div class="who"><b>${esc(x.campus)}</b><br><span class="muted">Period ${x.period} · ${niceDate(x.date)} · ${x.classes.length} ${x.classes.length===1?"class":"classes"} · ${sentOf(x)}</span></div></li>`).join("")}</ul></section>`;
 }
-function bindHistory(){document.querySelectorAll("[data-dlone]").forEach(b=>b.onclick=()=>{const w=S.history.find(x=>x.id===b.dataset.dlone);if(w)download(w);});}
+function bindHistory(){}
 
-// excel download of one walk (backup; the shared sheet is the main record)
-function download(w){
-  if(typeof XLSX==="undefined"){toast("Excel maker didn't load. Check your signal.");return;}
-  const rows=[["Campus","Date","Period","Round","Time","Room","Year level","Subject","Using iPads/laptops","Distracted","Note"]];
-  [0,1,2].forEach(l=>w.classes.forEach(c=>{const k=c.checks[l];if(!k)return;const p=payload(w,c,l);
-    rows.push([p.campus,p.date,+p.period,+p.round,p.time,p.room,p.year,p.subject,p.tech,p.distracted,p.note]);}));
-  const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"]=[{wch:14},{wch:11},{wch:7},{wch:7},{wch:9},{wch:8},{wch:9},{wch:16},{wch:10},{wch:10},{wch:30}];
-  XLSX.utils.book_append_sheet(wb,ws,"Checks");
-  XLSX.writeFile(wb,`Screen time walk - ${w.campus} - ${w.date}.xlsx`);
-}
 
 render();tick();keepAwake();kick();
 </script>
