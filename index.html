@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#4F2759">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Screen Time Walk">
+<title>Screen Time Walk</title>
+<style>
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+[hidden]{display:none!important}
+:root{padding-bottom:env(safe-area-inset-bottom,0px)}
+/* Layout: one phone column; purple top bar holds campus + live timer; one task per screen */
+:root{
+  --purple:#4F2759; --purple-ink:#3d1d45; --gold:#C59F40; --gold-ink:#7A5012;
+  --bg:#F7F5F3; --surface:#FFFFFF; --line:#DAD7D1; --line-soft:#E6E2DD;
+  --fg:#2B281F; --muted:#5f5a50; --on-purple:#FFFFFF;
+  --yes:#2e7d1f; --yes-tint:#CFE9D3; --no:#4a4640; --no-tint:#EFEDED;
+  --warn-tint:#FDAFBD; --warn-ink:#8F1D2E; --sel-tint:#ECE4EE;
+  --font:"Graphik","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --display:"Avenir Black","Avenir Next","Graphik","Segoe UI",system-ui,sans-serif;
+  --r:12px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#17141a; --surface:#221e25; --line:#3a3540; --line-soft:#2e2a33;
+  --fg:#F1EEEA; --muted:#bdb6c2; --purple:#9b6aa8; --purple-ink:#c9a6d2; --gold:#DFAB57; --gold-ink:#FFD157;
+  --yes:#86C791; --yes-tint:#1f3a24; --no:#d8d3cc; --no-tint:#2e2a33; --warn-tint:#4a1f2a; --warn-ink:#FDAFBD; --sel-tint:#3a2a40;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17141a; --surface:#221e25; --line:#3a3540; --line-soft:#2e2a33;
+  --fg:#F1EEEA; --muted:#bdb6c2; --purple:#9b6aa8; --purple-ink:#c9a6d2; --gold:#DFAB57; --gold-ink:#FFD157;
+  --yes:#86C791; --yes-tint:#1f3a24; --no:#d8d3cc; --no-tint:#2e2a33; --warn-tint:#4a1f2a; --warn-ink:#FDAFBD; --sel-tint:#3a2a40;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+::selection{background:var(--gold);color:#000}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:#4F2759}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:#4F2759;color:var(--on-purple);
+  padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar-in{max-width:560px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-family:var(--display);font-weight:800;font-size:1.05rem;letter-spacing:.01em}
+.brand small{display:block;font-family:var(--font);font-weight:400;font-size:.8rem;color:#e9dcc0}
+.clock{text-align:right;font-variant-numeric:tabular-nums}
+.clock b{display:block;font-size:1.6rem;line-height:1;color:#C59F40;font-weight:600}
+.clock span{font-size:.75rem;color:#e9dcc0}
+main{max-width:560px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:20px}
+h1,h2{font-family:var(--display);color:var(--purple-ink);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:1.6rem} h2{font-size:1.15rem}
+p{margin:0}
+.muted{color:var(--muted);font-size:.9rem}
+.panel{background:var(--surface);border:1px solid var(--line-soft);border-radius:var(--r);padding:16px;display:grid;gap:16px;box-shadow:0 1px 2px rgba(43,40,31,.06),0 4px 14px rgba(43,40,31,.05)}
+.field{display:grid;gap:8px}
+.label{font-weight:600;font-size:.95rem}
+.label em{font-style:normal;font-weight:400;color:var(--muted)}
+input[type=text],input[type=date]{font:inherit;font-size:1.1rem;width:100%;min-width:0;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);color:var(--fg);caret-color:var(--purple)}
+input:focus-visible,button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:.95rem;min-height:44px;padding:8px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--purple);border-color:var(--purple);color:#fff;font-weight:600}
+.years .chip{min-width:52px}
+.campus{display:grid;gap:10px}
+.campus .chip{border-radius:10px;text-align:left;font-size:1.1rem;padding:14px 16px}
+.yn{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.yn button{font:inherit;font-size:1.2rem;font-weight:600;min-height:60px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.yn button[data-v=Yes][aria-pressed=true]{background:var(--yes-tint);border-color:var(--yes);color:var(--yes)}
+.yn button[data-v=No][aria-pressed=true]{background:var(--no-tint);border-color:var(--no);color:var(--no)}
+.yn.dis button[data-v=Yes][aria-pressed=true]{background:var(--warn-tint);border-color:var(--warn-ink);color:var(--warn-ink)}
+.btn{font:inherit;font-size:1.1rem;font-weight:600;min-height:56px;width:100%;border-radius:12px;border:0;background:var(--purple);color:#fff;cursor:pointer;padding:0 18px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--purple-ink);border:1.5px solid var(--line)}
+.btn.gold{background:#C59F40;color:#1c1608}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>*{flex:1 1 140px}
+.link{font:inherit;background:none;border:0;color:var(--purple-ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:6px 0;font-size:.95rem}
+.list{list-style:none;margin:0;padding:0;display:grid}
+.list li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line-soft);min-width:0}
+.list li:first-child{border-top:0}
+.list .who{flex:1;min-width:0}
+.list .who b{font-variant-numeric:tabular-nums}
+.tag{font-size:.78rem;font-weight:600;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.tag.y{background:var(--yes-tint);color:var(--yes)} .tag.n{background:var(--no-tint);color:var(--no)}
+.tag.d{background:var(--warn-tint);color:var(--warn-ink)} .tag.s{background:var(--line-soft);color:var(--muted)}
+.del{font:inherit;font-size:.85rem;background:none;border:1px solid var(--line);border-radius:8px;color:var(--muted);padding:6px 10px;cursor:pointer;min-height:36px}
+.del.armed{background:var(--warn-tint);color:var(--warn-ink);border-color:var(--warn-ink)}
+.stop{display:grid;gap:4px}
+.stop .room{font-family:var(--display);font-size:2.4rem;line-height:1;color:var(--purple-ink);font-variant-numeric:tabular-nums}
+.progress{display:flex;gap:4px;flex-wrap:wrap}
+.progress i{width:14px;height:6px;border-radius:3px;background:var(--line)}
+.progress i.done{background:var(--purple)} .progress i.now{background:#C59F40}
+.due{font-size:2.6rem;font-family:var(--display);color:var(--purple-ink);font-variant-numeric:tabular-nums;line-height:1}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.92rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line-soft)}
+th{font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+td.n,th.n{text-align:right}
+.scroll{overflow-x:auto}
+.facts{display:grid;grid-template-columns:1fr auto;gap:0}
+.facts div{padding:9px 0;border-bottom:1px solid var(--line-soft)}
+.facts div:nth-child(even){text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.95rem;opacity:0;transition:opacity .25s ease-out;pointer-events:none;max-width:calc(100% - 32px)}
+.toast.on{opacity:1}
+#hist{display:grid;gap:20px}
+.note{background:var(--sel-tint);border-radius:10px;padding:12px 14px;font-size:.92rem}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<header class="bar"><div class="bar-in">
+  <div class="brand">Screen Time Walk<small id="barSub">Years 5 to 12</small></div>
+  <div class="clock" id="clock" hidden><b id="clockT">0:00</b><span id="clockL">Lap 1 of 3</span></div>
+</div></header>
+
+<main id="app"></main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// settings: flowUrl filled after the Power Automate flow is built
+const CONFIG={flowUrl:""};
+const CAMPUSES=["Glen Waverley","St Kilda Road","Elsternwick"];
+const YEARS=[5,6,7,8,9,10,11,12];
+const SUBJECTS=["English","Maths","Science","Humanities","Languages","Visual Arts","Music","Drama","Health & PE","Digital Tech","Design Tech","PYP Homeroom","Library"];
+const LAP_GAP_MIN=10, MIN_PER_YES=10, KEY="stw-site-v1";
+const hasFlow=!!CONFIG.flowUrl;
+
+// state + storage
+let S={walk:null,history:[],queue:[]};
+try{const raw=localStorage.getItem(KEY); if(raw) S=Object.assign(S,JSON.parse(raw));}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+let form=freshForm(); let setup={campus:null,date:today()};
+function freshForm(){return{room:"",year:null,subject:null,other:"",tech:null,dis:null,note:""};}
+function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mmss=ms=>{ms=Math.max(0,ms);const s=Math.floor(ms/1000);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+":"+String(m).padStart(2,"0"):m)+":"+String(x).padStart(2,"0");};
+const clockTime=ts=>new Date(ts).toLocaleTimeString("en-AU",{hour:"numeric",minute:"2-digit"});
+const niceDate=d=>{const [y,m,dd]=d.split("-");return new Date(+y,+m-1,+dd).toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short",year:"numeric"});};
+function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("on"),2200);}
+
+// send queue: one row per check to the flow, oldest first, retry every 30s
+let sending=false,retryT=null;
+function payload(w,c,lap){const k=c.checks[lap];
+  return{checkId:w.id+"-"+c.id+"-L"+(lap+1),walkId:w.id,campus:w.campus,date:w.date,lap:String(lap+1),time:clockTime(k.at),
+    room:c.room,year:"Year "+c.year,subject:c.subject,tech:k.tech,distracted:k.dis||"",note:lap===0?(c.note||""):""};}
+function queueLap(w,lap){
+  w.classes.forEach(c=>{const k=c.checks[lap];if(k&&!k.sent){k.sent="queued";S.queue.push(payload(w,c,lap));}});
+  save();kick();
+}
+function findCheck(p){const all=[S.walk].concat(S.history).filter(Boolean);
+  for(const w of all){if(w.id!==p.walkId)continue;for(const c of w.classes){if(p.checkId===w.id+"-"+c.id+"-L"+p.lap)return c.checks[+p.lap-1];}}return null;}
+function kick(){if(!hasFlow||sending||!S.queue.length)return;sendNext();}
+async function sendNext(){
+  const p=S.queue[0];sending=true;setSync();let res=null;
+  try{res=await fetch(CONFIG.flowUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});}catch(e){res=null;}
+  sending=false;
+  if(res&&res.ok){S.queue.shift();const k=findCheck(p);if(k)k.sent=true;save();setSync();kick();}
+  else if(res&&res.status>=400&&res.status<500&&res.status!==408&&res.status!==429){S.queue.shift();const k=findCheck(p);if(k)k.sent="rejected";save();setSync();kick();}
+  else{setSync();if(!retryT)retryT=setTimeout(()=>{retryT=null;kick();},30000);}
+}
+window.addEventListener("online",kick);
+function syncLine(){
+  if(!hasFlow) return "Not linked to the shared sheet yet. Use Download Excel at the end.";
+  const n=S.queue.length;
+  if(!n) return "Everything is in the shared sheet.";
+  return sending?`Sending to the shared sheet… ${n} left`:`${n} waiting to send. Will retry when there is signal.`;
+}
+function setSync(){const el=$("#sync");if(el)el.textContent=syncLine();}
+
+// wake lock keeps phone screen on while walking
+let wake=null;
+async function keepAwake(){try{if(S.walk&&S.walk.phase!=="done"&&"wakeLock" in navigator&&!wake){wake=await navigator.wakeLock.request("screen");wake.addEventListener("release",()=>wake=null);}}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"){keepAwake();kick();}});
+
+// render router
+function render(){
+  const w=S.walk;
+  $("#clock").hidden=!(w&&w.phase!=="done");
+  $("#barSub").textContent=w?w.campus+" · "+niceDate(w.date):"Years 5 to 12";
+  if(!w) return renderSetup();
+  if(w.phase==="done") return renderDone();
+  if(w.phase==="between") return renderBetween();
+  return w.lap===0?renderLap1():renderLapN();
+}
+function tick(){
+  const w=S.walk; if(!w||w.phase==="done") return;
+  $("#clockT").textContent=mmss(Date.now()-w.startedAt);
+  $("#clockL").textContent=w.phase==="between"?"Between laps":"Lap "+(w.lap+1)+" of 3";
+  const d=$("#dueT"); if(d){const due=w.laps[w.lap].start+LAP_GAP_MIN*60000,left=due-Date.now();d.textContent=left>0?mmss(left):"Now";$("#dueL").textContent=left>0?"until lap "+(w.lap+2)+" is due ("+clockTime(due)+")":"Lap "+(w.lap+2)+" is due. Head off when ready.";}
+}
+setInterval(tick,1000);
+
+// setup screen
+function renderSetup(){
+  const ok=setup.campus&&setup.date;
+  $("#app").innerHTML=`
+  <section class="panel">
+    <h1>New walk</h1>
+    <p class="muted">Three laps of the same route, about ${LAP_GAP_MIN} minutes apart. The timer starts when you tap Start.</p>
+    <div class="field"><span class="label">Campus</span>
+      <div class="campus" role="group" aria-label="Campus">${CAMPUSES.map(c=>`<button class="chip" data-campus="${esc(c)}" aria-pressed="${setup.campus===c}">${esc(c)}</button>`).join("")}</div></div>
+    <div class="field"><label class="label" for="date">Date</label><input type="date" id="date" value="${esc(setup.date)}"></div>
+    <button class="btn" id="start" ${ok?"":"disabled"}>Start observation</button>
+  </section>
+  <p class="muted" id="sync">${esc(syncLine())}</p>
+  ${historyPanel()}`;
+  document.querySelectorAll("[data-campus]").forEach(b=>b.onclick=()=>{setup.campus=b.dataset.campus;renderSetup();});
+  $("#date").onchange=e=>{setup.date=e.target.value;renderSetup();};
+  $("#start").onclick=()=>{
+    const now=Date.now();
+    S.walk={id:"w"+now.toString(36),campus:setup.campus,date:setup.date,startedAt:now,laps:[{start:now,end:null}],lap:0,stop:0,phase:"lap",classes:[]};
+    form=freshForm();save();keepAwake();render();tick();toast("Timer started. Lap 1 of 3.");
+  };
+  bindHistory();
+}
+
+// lap 1: record each class as you reach it
+function lap1Ready(f){return f.room.trim()&&f.year&&(f.subject&&(f.subject!=="Other"||f.other.trim()))&&f.tech&&(f.tech==="No"||f.dis);}
+function renderLap1(){
+  const w=S.walk,f=form;
+  $("#app").innerHTML=`
+  <section class="panel">
+    <div><h1>Lap 1: class ${w.classes.length+1}</h1><p class="muted">Fill this in at the doorway, then save and walk on.</p></div>
+    <div class="field"><label class="label" for="room">Room</label><input type="text" id="room" value="${esc(f.room)}" placeholder="e.g. B204" autocapitalize="characters" autocomplete="off"></div>
+    <div class="field"><span class="label">Year level</span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
+    <div class="field"><span class="label">Subject</span><div class="chips" role="group" aria-label="Subject">${SUBJECTS.concat("Other").map(s=>`<button class="chip" data-sub="${esc(s)}" aria-pressed="${f.subject===s}">${esc(s)}</button>`).join("")}</div>
+      ${f.subject==="Other"?`<input type="text" id="other" value="${esc(f.other)}" placeholder="Type the subject">`:""}</div>
+    ${ynBlock("Using tech?","tech",f.tech,false)}
+    ${f.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",f.dis,true):""}
+    <div class="field"><label class="label" for="note">Note <em>(optional)</em></label><input type="text" id="note" value="${esc(f.note)}" placeholder="e.g. two students on games"></div>
+    <button class="btn" id="saveC" ${lap1Ready(f)?"":"disabled"}>Save and go to next class</button>
+  </section>
+  ${w.classes.length?`<section class="panel"><h2>Lap 1 so far (${w.classes.length})</h2>${classList(0,true)}
+    <button class="btn gold" id="endLap">Finish lap 1</button>
+    <p class="muted">Finish once you have reached the last class on your route.</p></section>`:""}`;
+  $("#room").oninput=e=>{f.room=e.target.value;upd();};
+  const o=$("#other"); if(o) o.oninput=e=>{f.other=e.target.value;upd();};
+  $("#note").oninput=e=>{f.note=e.target.value;};
+  document.querySelectorAll("[data-year]").forEach(b=>b.onclick=()=>{f.year=+b.dataset.year;renderLap1();});
+  document.querySelectorAll("[data-sub]").forEach(b=>b.onclick=()=>{f.subject=b.dataset.sub;renderLap1();if(f.subject==="Other")$("#other").focus();});
+  bindYN(v=>{f.tech=v;if(v==="No")f.dis=null;renderLap1();},v=>{f.dis=v;renderLap1();});
+  function upd(){$("#saveC").disabled=!lap1Ready(f);}
+  $("#saveC").onclick=()=>{
+    const subj=f.subject==="Other"?f.other.trim():f.subject,r=f.room.trim().toUpperCase();
+    w.classes.push({id:"c"+Date.now().toString(36),room:r,year:f.year,subject:subj,note:f.note.trim(),
+      checks:[{tech:f.tech,dis:f.tech==="Yes"?f.dis:"",at:Date.now()},null,null]});
+    form=freshForm(); save(); renderLap1(); scrollTo({top:0}); toast("Saved "+r+". Next class.");
+  };
+  const e=$("#endLap"); if(e) e.onclick=()=>endLap();
+  bindDeletes();
+}
+function ynBlock(label,key,val,dis){
+  return `<div class="field"><span class="label">${label}</span><div class="yn${dis?" dis":""}" role="group" aria-label="${esc(label)}">
+    <button data-yn="${key}" data-v="Yes" aria-pressed="${val==="Yes"}">Yes</button><button data-yn="${key}" data-v="No" aria-pressed="${val==="No"}">No</button></div></div>`;
+}
+function bindYN(onTech,onDis){document.querySelectorAll("[data-yn]").forEach(b=>b.onclick=()=>(b.dataset.yn==="tech"?onTech:onDis)(b.dataset.v));}
+function tagFor(c){if(!c)return `<span class="tag s">Not checked</span>`;if(c.tech==="Not seen")return `<span class="tag s">Not seen</span>`;
+  if(c.tech==="No")return `<span class="tag n">No tech</span>`;return `<span class="tag y">Tech</span>${c.dis==="Yes"?` <span class="tag d">Distracted</span>`:""}`;}
+function classList(lap,canDelete){
+  return `<ul class="list">${S.walk.classes.map((c,i)=>`<li><div class="who"><b>${esc(c.room)}</b> · Yr ${c.year} ${esc(c.subject)}</div>${tagFor(c.checks[lap])}
+    ${canDelete&&!c.checks[0].sent?`<button class="del" data-del="${i}">Remove</button>`:""}</li>`).join("")}</ul>`;
+}
+function bindDeletes(){document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+  if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Tap to confirm";setTimeout(()=>{if(b.isConnected){b.classList.remove("armed");b.textContent="Remove";}},3000);return;}
+  S.walk.classes.splice(+b.dataset.del,1);save();render();toast("Class removed");});}
+
+// laps 2 and 3: same route, one class at a time
+function renderLapN(){
+  const w=S.walk,L=w.lap,i=w.stop,c=w.classes[i],ck=c.checks[L]||{tech:null,dis:null};
+  const prevTxt=k=>!k?"not checked":k.tech==="Yes"?"tech in use":k.tech==="No"?"no tech":"not seen";
+  $("#app").innerHTML=`
+  <section class="panel">
+    <div class="progress" aria-hidden="true">${w.classes.map((x,j)=>`<i class="${x.checks[L]&&x.checks[L].tech&&(x.checks[L].tech!=="Yes"||x.checks[L].dis)?"done":j===i?"now":""}"></i>`).join("")}</div>
+    <div class="stop"><span class="muted">Lap ${L+1} · stop ${i+1} of ${w.classes.length}</span><span class="room">${esc(c.room)}</span><span>Year ${c.year} ${esc(c.subject)}</span>
+      <span class="muted">Lap 1: ${prevTxt(c.checks[0])}${L===2?", lap 2: "+prevTxt(c.checks[1]):""}</span></div>
+    ${ynBlock("Using tech?","tech",ck.tech,false)}
+    ${ck.tech==="Yes"?ynBlock("Anyone distracted or mucking around?","dis",ck.dis,true):""}
+    <div class="row"><button class="btn ghost" id="prev" ${i===0?"disabled":""}>Back</button><button class="btn ghost" id="notSeen">Class not there</button></div>
+  </section>
+  <section class="panel"><h2>Lap ${L+1} so far</h2>${classList(L,false)}
+    <button class="link" id="endEarly">Finish lap ${L+1} now (unchecked classes stay blank)</button></section>`;
+  const commit=(tech,dis)=>{c.checks[L]={tech,dis:tech==="Yes"?dis:"",at:Date.now()};save();next();};
+  bindYN(v=>{if(v==="No")commit("No","");else{c.checks[L]={tech:"Yes",dis:null,at:Date.now()};save();renderLapN();}},v=>commit("Yes",v));
+  $("#notSeen").onclick=()=>commit("Not seen","");
+  $("#prev").onclick=()=>{w.stop=Math.max(0,i-1);save();renderLapN();};
+  $("#endEarly").onclick=()=>endLap();
+  function next(){const r=c.room;
+    if(i+1<w.classes.length){w.stop=i+1;save();renderLapN();scrollTo({top:0});toast("Saved "+r+".");}else endLap();}
+}
+function endLap(){
+  const w=S.walk; if(w.lap===0&&!w.classes.length) return;
+  w.classes.forEach(c=>{const k=c.checks[w.lap];if(k&&k.tech==="Yes"&&!k.dis)k.dis="";});
+  w.laps[w.lap].end=Date.now();
+  queueLap(w,w.lap);
+  if(w.lap===2){w.phase="done";w.finishedAt=Date.now();S.history=[w].concat(S.history.filter(h=>h.id!==w.id)).slice(0,20);if(wake)wake.release().catch(()=>{});}
+  else w.phase="between";
+  save();render();tick();scrollTo({top:0});
+}
+
+// between laps
+function renderBetween(){
+  const w=S.walk,L=w.lap,took=w.laps[L].end-w.laps[L].start;
+  $("#app").innerHTML=`
+  <section class="panel">
+    <h1>Lap ${L+1} done</h1>
+    <p>${w.classes.length} classes in ${mmss(took)}.</p>
+    <div><div class="due" id="dueT">--:--</div><p class="muted" id="dueL"></p></div>
+    <button class="btn" id="go">Start lap ${L+2}</button>
+    ${L===0?`<button class="link" id="back">Go back to lap 1 to add a class</button>`:""}
+  </section>
+  <p class="muted" id="sync">${esc(syncLine())}</p>
+  <section class="panel"><h2>Lap ${L+1} results</h2>${classList(L,false)}</section>`;
+  $("#go").onclick=()=>{w.lap=L+1;w.stop=0;w.phase="lap";w.laps[w.lap]={start:Date.now(),end:null};save();render();tick();toast("Lap "+(L+2)+" started.");};
+  const b=$("#back"); if(b) b.onclick=()=>{w.phase="lap";w.laps[0].end=null;save();render();tick();};
+  tick();
+}
+
+// stats
+function stats(classes){
+  const all=[];classes.forEach(c=>c.checks.forEach((k,l)=>{if(k&&(k.tech==="Yes"||k.tech==="No"))all.push({c,l,k});}));
+  const pack=list=>{const checks=list.length,tech=list.filter(x=>x.k.tech==="Yes").length,dis=list.filter(x=>x.k.tech==="Yes"&&x.k.dis==="Yes").length;
+    return{checks,tech,pctTech:checks?tech/checks:null,dis,pctDis:tech?dis/tech:null,mins:tech*MIN_PER_YES};};
+  const by=(keyFn,keys)=>keys.map(k=>Object.assign({key:k,classes:classes.filter(c=>keyFn(c)===k).length},pack(all.filter(x=>keyFn(x.c)===k)))).filter(r=>r.classes);
+  return{overall:Object.assign({classes:classes.length},pack(all)),
+    laps:[0,1,2].map(l=>Object.assign({key:"Lap "+(l+1)},pack(all.filter(x=>x.l===l)))),
+    years:by(c=>c.year,YEARS),subjects:by(c=>c.subject,[...new Set(classes.map(c=>c.subject))])};
+}
+const pct=v=>v==null?"–":Math.round(v*100)+"%";
+
+// done screen
+function renderDone(){
+  const w=S.walk,s=stats(w.classes),o=s.overall;
+  $("#app").innerHTML=`
+  <section class="panel">
+    <h1>Walk complete</h1>
+    <p class="muted">${esc(w.campus)} · ${niceDate(w.date)} · ${clockTime(w.startedAt)} to ${clockTime(w.finishedAt)}</p>
+    <div class="facts">
+      <div>Classes visited</div><div>${o.classes}</div>
+      <div>Checks made</div><div>${o.checks}</div>
+      <div>Checks with tech in use</div><div>${o.tech} (${pct(o.pctTech)})</div>
+      <div>Tech checks with someone distracted</div><div>${o.dis} (${pct(o.pctDis)})</div>
+      <div>Estimated screen minutes, all classes</div><div>${o.mins}</div>
+      <div>Average per class (out of 30 min)</div><div>${o.classes?(o.mins/o.classes).toFixed(1):"–"}</div>
+    </div>
+    <p class="muted" id="sync">${esc(syncLine())}</p>
+    <button class="btn" id="newWalk">Start a new walk</button>
+    <button class="btn ghost" id="dl">Download this walk as Excel</button>
+    <p class="muted">Each "Yes" for tech counts as about ${MIN_PER_YES} minutes of screen time.</p>
+  </section>
+  <section class="panel"><h2>By year level</h2><div class="scroll">${table(s.years,"Year",k=>"Year "+k)}</div></section>
+  <section class="panel"><h2>By subject</h2><div class="scroll">${table(s.subjects,"Subject",k=>esc(k))}</div></section>
+  ${historyPanel()}`;
+  $("#dl").onclick=()=>download(w);
+  $("#newWalk").onclick=()=>{S.walk=null;setup.campus=null;setup.date=today();save();render();scrollTo({top:0});};
+  bindHistory();
+}
+function table(rows,head,fmt){
+  return `<table><thead><tr><th>${head}</th><th class="n">Classes</th><th class="n">Tech</th><th class="n">Mins</th><th class="n">Distracted</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${fmt(r.key)}</td><td class="n">${r.classes}</td><td class="n">${pct(r.pctTech)}</td><td class="n">${r.mins}</td><td class="n">${pct(r.pctDis)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+// walks kept on this phone
+function historyPanel(){
+  const h=S.history.filter(x=>!S.walk||x.id!==S.walk.id); if(!h.length) return "";
+  const sentOf=w=>{let n=0,t=0;w.classes.forEach(c=>c.checks.forEach(k=>{if(k){t++;if(k.sent===true)n++;}}));return hasFlow?(n===t?"In shared sheet":n+" of "+t+" sent"):"Saved on this phone";};
+  return `<section class="panel"><h2>Earlier walks on this phone</h2>
+    <ul class="list">${h.map(x=>`<li><div class="who"><b>${esc(x.campus)}</b><br><span class="muted">${niceDate(x.date)} · ${x.classes.length} classes · ${sentOf(x)}</span></div><button class="del" data-dlone="${esc(x.id)}">Excel</button></li>`).join("")}</ul></section>`;
+}
+function bindHistory(){document.querySelectorAll("[data-dlone]").forEach(b=>b.onclick=()=>{const w=S.history.find(x=>x.id===b.dataset.dlone);if(w)download(w);});}
+
+// excel download of one walk (backup; the shared sheet is the main record)
+function download(w){
+  if(typeof XLSX==="undefined"){toast("Excel maker didn't load. Check your signal.");return;}
+  const rows=[["Check ID","Campus","Date","Lap","Time","Room","Year level","Subject","Using tech","Distracted","Note"]];
+  [0,1,2].forEach(l=>w.classes.forEach(c=>{const k=c.checks[l];if(!k)return;const p=payload(w,c,l);
+    rows.push([p.checkId,p.campus,p.date,+p.lap,p.time,p.room,p.year,p.subject,p.tech,p.distracted,p.note]);}));
+  const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"]=[{wch:22},{wch:14},{wch:11},{wch:5},{wch:9},{wch:8},{wch:9},{wch:16},{wch:10},{wch:10},{wch:30}];
+  XLSX.utils.book_append_sheet(wb,ws,"Checks");
+  XLSX.writeFile(wb,`Screen time walk - ${w.campus} - ${w.date}.xlsx`);
+}
+
+render();tick();keepAwake();kick();
+</script>
+</body>
+</html>
