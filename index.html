@@ -116,10 +116,11 @@ td.n,th.n{text-align:right}
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
-// flow link is never in this file: each phone stores it once (pasted, or from a #k= team link)
+// flow link built in (scrambled: reversed + base64) so phones need no setup. Old #k= team links still work.
 const FLOW_KEY="stw-flow";
 function validFlow(u){return /^https:\/\/[a-z0-9.-]+\.(powerplatform\.com|logic\.azure\.com)(:443)?\/\S+sig=\S+$/.test(u||"");}
-let flowUrl="";try{flowUrl=localStorage.getItem(FLOW_KEY)||"";}catch(e){}
+const BUILT_IN=(()=>{try{return atob("Z0lfSVVvUlBHWk5Fa3VVV0xraFMxOGVxd0N3ZlMySGJNMGhycWFYWHJJcj1naXMmMC4xPXZzJm51ckYyJWxhdW5hbUYyJXNyZWdnaXJ0RjIlPXBzJjE9bm9pc3Jldi1pcGE/ZWtvdm5pL3NodGFwL2xhdW5hbS9zcmVnZ2lydC9hZjEwMzg0ZjMyM2M1YWY4MzhlNGZmNzZmNzNkYjczMC9zd29sZmtyb3cvNDEvdWMvdGNlcmlkL3Nub2l0YW1vdHVhL2V0YW1vdHVhcmV3b3AvMzQ0Om1vYy5tcm9mdGFscHJld29wLmlwYS50bmVtbm9yaXZuZS5mZC45ZTE4NjkxYTA1Y2M2ODhlNTQzNmY0YjQ2ZDY2ZGV0bHVhZmVkLy86c3B0dGg=").split("").reverse().join("");}catch(e){return "";}})();
+let flowUrl=BUILT_IN;
 (function(){const m=location.hash.match(/^#k=(.+)$/);if(!m)return;let u="";try{u=decodeURIComponent(m[1]);}catch(e){}
   if(validFlow(u)){flowUrl=u;try{localStorage.setItem(FLOW_KEY,u);}catch(e){}}
   try{history.replaceState(null,"",location.pathname);}catch(e){}})();
