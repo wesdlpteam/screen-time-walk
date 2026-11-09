@@ -121,6 +121,7 @@ td.n,th.n{text-align:right}
 const CONFIG={flowUrl:""};
 const CAMPUSES=["Glen Waverley","St Kilda Road","Elsternwick"];
 const YEARS=[5,6,7,8,9,10,11,12];
+const PERIODS=[1,2,3,4,5,6];
 const SUBJECTS=["English","Maths","Science","Humanities","Languages","Visual Arts","Music","Drama","Health & PE","Digital Tech","Design Tech","PYP Homeroom","Library"];
 const MIN_PER_YES=10, KEY="stw-site-v1";
 const hasFlow=!!CONFIG.flowUrl;
@@ -129,7 +130,7 @@ const hasFlow=!!CONFIG.flowUrl;
 let S={walk:null,history:[],queue:[]};
 try{const raw=localStorage.getItem(KEY); if(raw) S=Object.assign(S,JSON.parse(raw));}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
-let form=freshForm(); let setup={campus:null,date:today()};
+let form=freshForm(); let setup={campus:null,period:null,date:today()};
 function freshForm(){return{room:"",year:null,subject:null,other:"",tech:null,dis:null,note:""};}
 function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 const $=s=>document.querySelector(s);
@@ -142,7 +143,7 @@ function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("on");c
 // send queue: one row per check to the flow, oldest first, retry every 30s
 let sending=false,retryT=null;
 function payload(w,c,lap){const k=c.checks[lap];
-  return{checkId:w.id+"-"+c.id+"-R"+(lap+1),walkId:w.id,campus:w.campus,date:w.date,round:String(lap+1),time:clockTime(k.at),
+  return{checkId:w.id+"-"+c.id+"-R"+(lap+1),walkId:w.id,campus:w.campus,date:w.date,period:String(w.period||""),round:String(lap+1),time:clockTime(k.at),
     room:c.room,year:"Year "+c.year,subject:c.subject,tech:k.tech,distracted:k.dis||"",note:lap===0?(c.note||""):""};}
 function queueLap(w,lap){
   w.classes.forEach(c=>{const k=c.checks[lap];if(k&&!k.sent){k.sent="queued";S.queue.push(payload(w,c,lap));}});
@@ -177,7 +178,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 function render(){
   const w=S.walk;
   $("#clock").hidden=!(w&&w.phase!=="done");
-  $("#barSub").textContent=w?w.campus+" · "+niceDate(w.date):"Years 5 to 12";
+  $("#barSub").textContent=w?w.campus+" · Period "+w.period+" · "+niceDate(w.date):"Years 5 to 12";
   if(!w) return renderSetup();
   if(w.phase==="done") return renderDone();
   if(w.phase==="between") return renderBetween();
@@ -193,23 +194,26 @@ setInterval(tick,1000);
 
 // setup screen
 function renderSetup(){
-  const ok=setup.campus&&setup.date;
+  const ok=setup.campus&&setup.period&&setup.date;
   $("#app").innerHTML=`
   <section class="panel">
     <h1>New walk</h1>
     <p class="muted">Three rounds of the same route. The stopwatch starts when you tap Start observation and keeps running until you finish.</p>
     <div class="field"><span class="label">Campus</span>
       <div class="campus" role="group" aria-label="Campus">${CAMPUSES.map(c=>`<button class="chip" data-campus="${esc(c)}" aria-pressed="${setup.campus===c}">${esc(c)}</button>`).join("")}</div></div>
+    <div class="field"><span class="label">Period</span>
+      <div class="chips years" role="group" aria-label="Period">${PERIODS.map(n=>`<button class="chip" data-period="${n}" aria-pressed="${setup.period===n}">${n}</button>`).join("")}</div></div>
     <div class="field"><label class="label" for="date">Date</label><input type="date" id="date" value="${esc(setup.date)}"></div>
     <button class="btn" id="start" ${ok?"":"disabled"}>Start observation</button>
   </section>
   <p class="muted" id="sync">${esc(syncLine())}</p>
   ${historyPanel()}`;
   document.querySelectorAll("[data-campus]").forEach(b=>b.onclick=()=>{setup.campus=b.dataset.campus;renderSetup();});
+  document.querySelectorAll("[data-period]").forEach(b=>b.onclick=()=>{setup.period=+b.dataset.period;renderSetup();});
   $("#date").onchange=e=>{setup.date=e.target.value;renderSetup();};
   $("#start").onclick=()=>{
     const now=Date.now();
-    S.walk={id:"w"+now.toString(36),campus:setup.campus,date:setup.date,startedAt:now,laps:[{start:now,end:null}],lap:0,stop:0,phase:"lap",classes:[]};
+    S.walk={id:"w"+now.toString(36),campus:setup.campus,period:setup.period,date:setup.date,startedAt:now,laps:[{start:now,end:null}],lap:0,stop:0,phase:"lap",classes:[]};
     form=freshForm();save();keepAwake();render();tick();toast("Stopwatch started. Round 1 of 3.");
   };
   bindHistory();
@@ -333,7 +337,7 @@ function renderDone(){
   $("#app").innerHTML=`
   <section class="panel">
     <h1>Walk complete</h1>
-    <p class="muted">${esc(w.campus)} · ${niceDate(w.date)} · ${clockTime(w.startedAt)} to ${clockTime(w.finishedAt)}</p>
+    <p class="muted">${esc(w.campus)} · Period ${w.period} · ${niceDate(w.date)} · ${clockTime(w.startedAt)} to ${clockTime(w.finishedAt)}</p>
     <div class="facts">
       <div>Classes visited</div><div>${o.classes}</div>
       <div>Checks made</div><div>${o.checks}</div>
@@ -351,7 +355,7 @@ function renderDone(){
   <section class="panel"><h2>By subject</h2><div class="scroll">${table(s.subjects,"Subject",k=>esc(k))}</div></section>
   ${historyPanel()}`;
   $("#dl").onclick=()=>download(w);
-  $("#newWalk").onclick=()=>{S.walk=null;setup.campus=null;setup.date=today();save();render();scrollTo({top:0});};
+  $("#newWalk").onclick=()=>{S.walk=null;setup.campus=null;setup.period=null;setup.date=today();save();render();scrollTo({top:0});};
   bindHistory();
 }
 function table(rows,head,fmt){
@@ -364,18 +368,18 @@ function historyPanel(){
   const h=S.history.filter(x=>!S.walk||x.id!==S.walk.id); if(!h.length) return "";
   const sentOf=w=>{let n=0,t=0;w.classes.forEach(c=>c.checks.forEach(k=>{if(k){t++;if(k.sent===true)n++;}}));return hasFlow?(n===t?"In shared sheet":n+" of "+t+" sent"):"Saved on this phone";};
   return `<section class="panel"><h2>Earlier walks on this phone</h2>
-    <ul class="list">${h.map(x=>`<li><div class="who"><b>${esc(x.campus)}</b><br><span class="muted">${niceDate(x.date)} · ${x.classes.length} classes · ${sentOf(x)}</span></div><button class="del" data-dlone="${esc(x.id)}">Excel</button></li>`).join("")}</ul></section>`;
+    <ul class="list">${h.map(x=>`<li><div class="who"><b>${esc(x.campus)}</b><br><span class="muted">Period ${x.period} · ${niceDate(x.date)} · ${x.classes.length} classes · ${sentOf(x)}</span></div><button class="del" data-dlone="${esc(x.id)}">Excel</button></li>`).join("")}</ul></section>`;
 }
 function bindHistory(){document.querySelectorAll("[data-dlone]").forEach(b=>b.onclick=()=>{const w=S.history.find(x=>x.id===b.dataset.dlone);if(w)download(w);});}
 
 // excel download of one walk (backup; the shared sheet is the main record)
 function download(w){
   if(typeof XLSX==="undefined"){toast("Excel maker didn't load. Check your signal.");return;}
-  const rows=[["Check ID","Campus","Date","Round","Time","Room","Year level","Subject","Using tech","Distracted","Note"]];
+  const rows=[["Check ID","Campus","Date","Period","Round","Time","Room","Year level","Subject","Using tech","Distracted","Note"]];
   [0,1,2].forEach(l=>w.classes.forEach(c=>{const k=c.checks[l];if(!k)return;const p=payload(w,c,l);
-    rows.push([p.checkId,p.campus,p.date,+p.round,p.time,p.room,p.year,p.subject,p.tech,p.distracted,p.note]);}));
+    rows.push([p.checkId,p.campus,p.date,+p.period,+p.round,p.time,p.room,p.year,p.subject,p.tech,p.distracted,p.note]);}));
   const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"]=[{wch:22},{wch:14},{wch:11},{wch:5},{wch:9},{wch:8},{wch:9},{wch:16},{wch:10},{wch:10},{wch:30}];
+  ws["!cols"]=[{wch:22},{wch:14},{wch:11},{wch:7},{wch:7},{wch:9},{wch:8},{wch:9},{wch:16},{wch:10},{wch:10},{wch:30}];
   XLSX.utils.book_append_sheet(wb,ws,"Checks");
   XLSX.writeFile(wb,`Screen time walk - ${w.campus} - ${w.date}.xlsx`);
 }
