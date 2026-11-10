@@ -141,7 +141,7 @@ let S={walk:null,history:[],queue:[]};
 try{const raw=localStorage.getItem(KEY); if(raw) S=Object.assign(S,JSON.parse(raw));}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 let form=freshForm(); let setup={campus:null,period:null,date:today()};
-function freshForm(){return{room:"",year:null,subject:"",tech:null,dis:null,note:""};}
+function freshForm(){return{room:"",year:null,subject:"",cover:false,tech:null,dis:null,note:""};}
 function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -154,7 +154,7 @@ function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("on");c
 let sending=false,retryT=null;
 function payload(w,c){const v=l=>{const k=c.checks[l];return k&&isAnswer(k.tech)?k.tech:"";};
   return{rowId:w.id+"-"+c.id,walkId:w.id,campus:w.campus,date:w.date,period:String(w.period||""),
-    room:c.room,year:c.year?"Year "+c.year:"",subject:c.subject||"",r1:v(0),r2:v(1),r3:v(2),note:c.note||""};}
+    room:c.room,year:c.year?"Year "+c.year:"",subject:c.subject||"",cover:c.cover?"Yes":"",r1:v(0),r2:v(1),r3:v(2),note:c.note||""};}
 function queueWalk(w){w.classes.forEach(c=>{if(!c.sent){c.sent="queued";S.queue.push(payload(w,c));}});save();kick();}
 function findClass(p){for(const w of [S.walk].concat(S.history).filter(Boolean)){if(w.id!==p.walkId)continue;for(const c of w.classes)if(p.rowId===w.id+"-"+c.id)return c;}return null;}
 function kick(){if(!hasFlow||sending||!S.queue.length)return;sendNext();}
@@ -235,8 +235,8 @@ function renderSetup(){
 
 // lap 1: record each class as you reach it
 function lap1Ready(f){return f.room.trim()&&f.tech;}
-function classLabel(c,long){const y=c.year?(long?"Year ":"Yr ")+c.year:"";const t=[y,c.subject].filter(Boolean).join(" ");return t||"Year and subject not noted";}
-function lap1Blank(f){return !f.room.trim()&&!f.year&&!f.subject.trim()&&!f.tech&&!f.note.trim();}
+function classLabel(c,long){const y=c.year?(long?"Year ":"Yr ")+c.year:"";const t=[y,c.subject,c.cover?"(cover)":""].filter(Boolean).join(" ");return t||"Year and subject not noted";}
+function lap1Blank(f){return !f.room.trim()&&!f.year&&!f.subject.trim()&&!f.cover&&!f.tech&&!f.note.trim();}
 function renderLap1(){
   const w=S.walk,f=form;
   $("#app").innerHTML=`
@@ -245,6 +245,7 @@ function renderLap1(){
     <div class="field"><label class="label" for="room">Room</label><input type="text" id="room" value="${esc(f.room)}" placeholder="e.g. B204" autocapitalize="characters" autocomplete="off"></div>
     <div class="field"><span class="label">Year level <em>(optional)</em></span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
     <div class="field"><span class="label">Subject <em>(optional)</em></span><div class="chips" role="group" aria-label="Subject">${SUBJECTS.map(x=>`<button class="chip" data-subj="${esc(x)}" aria-pressed="${f.subject===x}">${esc(x)}</button>`).join("")}</div></div>
+    <div class="field"><span class="label">Cover lesson? <em>(tick only if you know it is)</em></span><div class="chips" role="group" aria-label="Cover lesson"><button class="chip" id="cover" aria-pressed="${!!f.cover}">${f.cover?"✓ ":""}Cover lesson</button></div></div>
     ${ynBlock("Using iPads/laptops?","tech",f.tech,false)}
     <div class="field"><label class="label" for="note">Note <em>(optional)</em></label><input type="text" id="note" value="${esc(f.note)}" placeholder="e.g. two students on games"></div>
     <button class="btn" id="saveC" ${lap1Ready(f)?"":"disabled"}>Save and go to next class</button>
@@ -254,6 +255,7 @@ function renderLap1(){
   ${w.classes.length?`<section class="panel"><h2>Round 1 so far (${w.classes.length})</h2>${classList(0,true)}</section>`:""}
   ${endWalkBlock()}`;
   $("#room").oninput=e=>{f.room=e.target.value;upd();};
+  $("#cover").onclick=()=>{f.cover=!f.cover;renderLap1();};
   document.querySelectorAll("[data-subj]").forEach(b=>b.onclick=()=>{f.subject=f.subject===b.dataset.subj?"":b.dataset.subj;renderLap1();});
   $("#note").oninput=e=>{f.note=e.target.value;};
   document.querySelectorAll("[data-year]").forEach(b=>b.onclick=()=>{f.year=f.year===+b.dataset.year?null:+b.dataset.year;renderLap1();});
@@ -261,7 +263,7 @@ function renderLap1(){
   function upd(){$("#saveC").disabled=!lap1Ready(f);}
   $("#saveC").onclick=()=>{
     const subj=f.subject.trim(),r=f.room.trim().toUpperCase();
-    w.classes.push({id:"c"+Date.now().toString(36),room:r,year:f.year,subject:subj,note:f.note.trim(),
+    w.classes.push({id:"c"+Date.now().toString(36),room:r,year:f.year,subject:subj,cover:!!f.cover,note:f.note.trim(),
       checks:[{tech:f.tech,dis:"",at:Date.now()},null,null]});
     form=freshForm(); save(); renderLap1(); scrollTo({top:0}); toast("Saved "+r+". Next class.");
   };
