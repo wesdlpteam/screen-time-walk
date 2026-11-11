@@ -156,7 +156,10 @@ function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("on");c
 let sending=false,retryT=null;
 function payload(w,c){const v=l=>{const k=c.checks[l];return k&&isAnswer(k.tech)?k.tech:"";};
   return{rowId:w.id+"-"+c.id,walkId:w.id,campus:w.campus,date:w.date,period:String(w.period||""),
-    room:c.room,year:c.year?yearName(c.year,true):"",subject:c.subject||"",cover:c.cover?"Yes":"",r1:v(0),r2:v(1),r3:v(2),note:c.note||""};}
+    room:c.room,year:c.year?yearName(c.year,true):"",subject:c.subject||"",cover:c.cover?"Yes":"",r1:v(0),r2:v(1),r3:v(2),note:noteText(c)};}
+// one note column: round 1 note alone, or "Round N: ..." parts once later rounds add notes
+function noteText(c){const n=[c.note,...[1,2].map(l=>c.checks[l]&&c.checks[l].note)].map(x=>(x||"").trim());
+  return n[1]||n[2]?n.map((x,i)=>x?"Round "+(i+1)+": "+x:"").filter(Boolean).join(" | "):n[0];}
 function queueWalk(w){w.classes.forEach(c=>{if(!c.sent){c.sent="queued";S.queue.push(payload(w,c));}});save();kick();}
 function findClass(p){for(const w of [S.walk].concat(S.history).filter(Boolean)){if(w.id!==p.walkId)continue;for(const c of w.classes)if(p.rowId===w.id+"-"+c.id)return c;}return null;}
 function kick(){if(!hasFlow||sending||!S.queue.length)return;sendNext();}
@@ -190,6 +193,7 @@ function render(){
   $("#barSub").textContent=w?w.campus+" · Period "+w.period+" · "+niceDate(w.date):"ECLC to Year 12";
   if(!w) return renderSetup();
   if(w.phase==="done") return renderDone();
+  if(editId) return renderEdit();
   if(w.phase==="between") return renderBetween();
   return w.lap===0?renderLap1():renderLapN();
 }
@@ -271,6 +275,7 @@ function renderLap1(){
   };
   $("#endLap").onclick=()=>{if(lap1Ready(f))$("#saveC").click();if(S.walk.classes.length)endLap();};
   bindDeletes();
+  bindEdits();
   bindEndWalk();
 }
 function ynBlock(label,key,val,dis){
@@ -282,11 +287,33 @@ function tagFor(c){if(!c)return `<span class="tag s">Not checked</span>`;if(c.te
   if(c.tech==="No"||c.tech==="None")return `<span class="tag n">None</span>`;return `<span class="tag y">${c.tech==="Yes"?"Devices":esc(c.tech)}</span>`;}
 function classList(lap,canDelete){
   return `<ul class="list">${S.walk.classes.map((c,i)=>`<li><div class="who"><b>${esc(c.room)}</b> · ${esc(classLabel(c,false))}</div>${tagFor(c.checks[lap])}
-    ${canDelete&&!c.checks[0].sent?`<button class="del" data-del="${i}">Remove</button>`:""}</li>`).join("")}</ul>`;
+    ${canDelete&&!c.checks[0].sent?`<button class="del" data-edit="${esc(c.id)}">Edit</button><button class="del" data-del="${i}">Remove</button>`:""}</li>`).join("")}</ul>`;
 }
 function bindDeletes(){document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
   if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Tap to confirm";setTimeout(()=>{if(b.isConnected){b.classList.remove("armed");b.textContent="Remove";}},3000);return;}
   S.walk.classes.splice(+b.dataset.del,1);save();render();toast("Class removed");});}
+
+// fix a saved class's room or year level (any round, before the walk is sent)
+let editId=null,editF=null,rnote="";
+function bindEdits(){document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{
+  const c=S.walk.classes.find(x=>x.id===b.dataset.edit);if(!c)return;
+  editId=c.id;editF={room:c.room,year:c.year==null?null:String(c.year)};render();scrollTo({top:0});});}
+function renderEdit(){
+  const c=S.walk.classes.find(x=>x.id===editId),f=editF;
+  if(!c){editId=null;return render();}
+  $("#app").innerHTML=`
+  <section class="panel">
+    <div><h1>Fix ${esc(c.room)}</h1><p class="muted">Change the room or year level, then save. Round answers and notes stay as they are.</p></div>
+    <div class="field"><label class="label" for="eRoom">Room</label><input type="text" id="eRoom" value="${esc(f.room)}" autocapitalize="characters" autocomplete="off"></div>
+    <div class="field"><span class="label">Year level <em>(optional)</em></span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-eyear="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
+    <button class="btn" id="eSave" ${f.room.trim()?"":"disabled"}>Save changes</button>
+    <button class="btn ghost" id="eCancel">Cancel</button>
+  </section>`;
+  $("#eRoom").oninput=e=>{f.room=e.target.value;$("#eSave").disabled=!f.room.trim();};
+  document.querySelectorAll("[data-eyear]").forEach(b=>b.onclick=()=>{f.year=f.year===b.dataset.eyear?null:b.dataset.eyear;renderEdit();});
+  $("#eCancel").onclick=()=>{editId=null;render();};
+  $("#eSave").onclick=()=>{const r=f.room.trim().toUpperCase();if(!r)return;c.room=r;c.year=f.year;editId=null;save();render();scrollTo({top:0});toast("Updated "+r+".");};
+}
 
 // rounds 2 and 3: pick the room you're at from round 1's list; done rooms drop off
 function renderLapN(){
@@ -297,8 +324,10 @@ function renderLapN(){
   <section class="panel">
     <div class="stop"><span class="muted">Round ${L+1}</span><span class="room">${esc(picked.room)}</span><span>${esc(classLabel(picked,true))}</span>
       <span class="muted">Round 1: ${prevTxt(picked.checks[0])}${L===2?", round 2: "+prevTxt(picked.checks[1]):""}</span></div>
+    <div class="field"><label class="label" for="rnote">Note for round ${L+1} <em>(optional, type it before tapping an answer)</em></label><input type="text" id="rnote" value="${esc(rnote)}" placeholder="e.g. now on Kahoot" autocomplete="off"></div>
     ${ynBlock("Using iPads/laptops?","tech",null,false)}
     <button class="btn ghost" id="unpick">Pick a different room</button>
+    <button class="link" data-edit="${esc(picked.id)}">Fix room or year level</button>
   </section>`:`
   <section class="panel">
     <div><h1>Round ${L+1}: which room?</h1><p class="muted">${left.length?`Tap the room you're at. ${left.length} to go.`:"You've checked every room from round 1."}</p></div>
@@ -307,14 +336,16 @@ function renderLapN(){
     ${left.length?`<p class="muted">Rooms you don't get to this round stay blank.</p>`:""}
   </section>`;
   $("#app").innerHTML=top+`
-  ${done.length?`<section class="panel"><h2>Round ${L+1} so far (${done.length})</h2><ul class="list">${done.map(x=>`<li><div class="who"><b>${esc(x.c.room)}</b> · ${esc(classLabel(x.c,false))}</div>${tagFor(x.c.checks[L])}<button class="del" data-undo="${x.i}">Change</button></li>`).join("")}</ul></section>`:""}
+  ${done.length?`<section class="panel"><h2>Round ${L+1} so far (${done.length})</h2><ul class="list">${done.map(x=>`<li><div class="who"><b>${esc(x.c.room)}</b> · ${esc(classLabel(x.c,false))}</div>${tagFor(x.c.checks[L])}<button class="del" data-edit="${esc(x.c.id)}">Edit</button><button class="del" data-undo="${x.i}">Change</button></li>`).join("")}</ul></section>`:""}
   ${endWalkBlock()}`;
   bindEndWalk();
-  document.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>{w.pick=+b.dataset.pick;save();renderLapN();scrollTo({top:0});});
-  document.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>{w.classes[+b.dataset.undo].checks[L]=null;w.pick=+b.dataset.undo;save();renderLapN();scrollTo({top:0});});
-  const u=$("#unpick"); if(u) u.onclick=()=>{w.pick=null;save();renderLapN();};
+  bindEdits();
+  const rn=$("#rnote"); if(rn) rn.oninput=e=>{rnote=e.target.value;};
+  document.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>{w.pick=+b.dataset.pick;rnote="";save();renderLapN();scrollTo({top:0});});
+  document.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>{const k=w.classes[+b.dataset.undo].checks[L];rnote=(k&&k.note)||"";w.classes[+b.dataset.undo].checks[L]=null;w.pick=+b.dataset.undo;save();renderLapN();scrollTo({top:0});});
+  const u=$("#unpick"); if(u) u.onclick=()=>{w.pick=null;rnote="";save();renderLapN();};
   const e=$("#endEarly"); if(e) e.onclick=()=>endLap();
-  if(picked) bindYN(v=>{picked.checks[L]={tech:v,dis:"",at:Date.now()};w.pick=null;save();renderLapN();scrollTo({top:0});toast("Saved "+picked.room+".");});
+  if(picked) bindYN(v=>{picked.checks[L]={tech:v,dis:"",at:Date.now(),note:rnote.trim()};rnote="";w.pick=null;save();renderLapN();scrollTo({top:0});toast("Saved "+picked.room+".");});
 }
 function endLap(){
   const w=S.walk; if(w.lap===0&&!w.classes.length) return;
@@ -376,7 +407,7 @@ function stats(classes){
   const by=(keyFn,keys)=>keys.map(k=>Object.assign({key:k,classes:classes.filter(c=>keyFn(c)===k).length},pack(all.filter(x=>keyFn(x.c)===k)))).filter(r=>r.classes);
   return{overall:Object.assign({classes:classes.length},pack(all)),
     laps:[0,1,2].map(l=>Object.assign({key:"Round "+(l+1)},pack(all.filter(x=>x.l===l)))),
-    years:by(c=>c.year,YEARS),subjects:by(c=>c.subject,[...new Set(SUBJECTS.concat(classes.map(c=>c.subject)))])};
+    years:by(c=>c.year==null?c.year:String(c.year),YEARS),subjects:by(c=>c.subject,[...new Set(SUBJECTS.concat(classes.map(c=>c.subject)))])};
 }
 const pct=v=>v==null?"–":Math.round(v*100)+"%";
 
@@ -398,7 +429,7 @@ function renderDone(){
     <button class="btn" id="newWalk">Start a new walk</button>
     <p class="muted">Percentages are out of all checks made.</p>
   </section>
-  <section class="panel"><h2>By year level</h2><div class="scroll">${table(s.years,"Year",k=>"Year "+k)}</div></section>
+  <section class="panel"><h2>By year level</h2><div class="scroll">${table(s.years,"Year",k=>yearName(k,true))}</div></section>
   <section class="panel"><h2>By subject</h2><div class="scroll">${table(s.subjects,"Subject",k=>esc(k||"Not noted"))}</div></section>
   ${historyPanel()}`;
   $("#newWalk").onclick=()=>{S.walk=null;setup.campus=null;setup.period=null;setup.date=today();save();render();scrollTo({top:0});};
