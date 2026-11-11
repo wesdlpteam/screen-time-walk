@@ -130,7 +130,7 @@ const YEARS=["ECLC","Prep","1","2","3","4","5","6","7","8","9","10","11","12"];
 // ECLC/Prep stand alone; numbers get "Year"/"Yr". old walks stored numbers, String() keeps them working
 const yearName=(y,long)=>{y=String(y);return y==="ECLC"||y==="Prep"?y:(long?"Year ":"Yr ")+y;};
 const PERIODS=[1,2,3,4,5,6];
-const SUBJECTS=["English","Maths","Science","I&S","Languages","Visual Arts","Music","Performing Arts","HPE","Design","General","Library","Commerce"];
+const SUBJECTS=["English","Maths","Science","I&S","RE","Languages","Visual Arts","Music","Performing Arts","HPE","Design","General","Library","Commerce"];
 // round answers. Yes/No kept so walks saved by older versions still count
 const TECH=["None","Mixed","Whole class"];
 const isTech=v=>v==="Mixed"||v==="Whole class"||v==="Yes";
