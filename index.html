@@ -109,7 +109,7 @@ td.n,th.n{text-align:right}
 </head>
 <body>
 <header class="bar"><div class="bar-in">
-  <div class="brand">Screen Time Walk<small id="barSub">Years 5 to 12</small></div>
+  <div class="brand">Screen Time Walk<small id="barSub">ECLC to Year 12</small></div>
   <div class="clock" id="clock" hidden><b id="clockT">0:00</b><span id="clockL">Lap 1 of 3</span></div>
 </div></header>
 
@@ -126,7 +126,9 @@ let flowUrl=BUILT_IN;
   if(validFlow(u)){flowUrl=u;try{localStorage.setItem(FLOW_KEY,u);}catch(e){}}
   try{history.replaceState(null,"",location.pathname);}catch(e){}})();
 const CAMPUSES=["Glen Waverley","St Kilda Road","Elsternwick"];
-const YEARS=[5,6,7,8,9,10,11,12];
+const YEARS=["ECLC","Prep","1","2","3","4","5","6","7","8","9","10","11","12"];
+// ECLC/Prep stand alone; numbers get "Year"/"Yr". old walks stored numbers, String() keeps them working
+const yearName=(y,long)=>{y=String(y);return y==="ECLC"||y==="Prep"?y:(long?"Year ":"Yr ")+y;};
 const PERIODS=[1,2,3,4,5,6];
 const SUBJECTS=["English","Maths","Science","I&S","Languages","Visual Arts","Music","Performing Arts","HPE","Design","General","Library","Commerce"];
 // round answers. Yes/No kept so walks saved by older versions still count
@@ -154,7 +156,7 @@ function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("on");c
 let sending=false,retryT=null;
 function payload(w,c){const v=l=>{const k=c.checks[l];return k&&isAnswer(k.tech)?k.tech:"";};
   return{rowId:w.id+"-"+c.id,walkId:w.id,campus:w.campus,date:w.date,period:String(w.period||""),
-    room:c.room,year:c.year?"Year "+c.year:"",subject:c.subject||"",cover:c.cover?"Yes":"",r1:v(0),r2:v(1),r3:v(2),note:c.note||""};}
+    room:c.room,year:c.year?yearName(c.year,true):"",subject:c.subject||"",cover:c.cover?"Yes":"",r1:v(0),r2:v(1),r3:v(2),note:c.note||""};}
 function queueWalk(w){w.classes.forEach(c=>{if(!c.sent){c.sent="queued";S.queue.push(payload(w,c));}});save();kick();}
 function findClass(p){for(const w of [S.walk].concat(S.history).filter(Boolean)){if(w.id!==p.walkId)continue;for(const c of w.classes)if(p.rowId===w.id+"-"+c.id)return c;}return null;}
 function kick(){if(!hasFlow||sending||!S.queue.length)return;sendNext();}
@@ -185,7 +187,7 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 function render(){
   const w=S.walk;
   $("#clock").hidden=!(w&&w.phase!=="done");
-  $("#barSub").textContent=w?w.campus+" · Period "+w.period+" · "+niceDate(w.date):"Years 5 to 12";
+  $("#barSub").textContent=w?w.campus+" · Period "+w.period+" · "+niceDate(w.date):"ECLC to Year 12";
   if(!w) return renderSetup();
   if(w.phase==="done") return renderDone();
   if(w.phase==="between") return renderBetween();
@@ -235,7 +237,7 @@ function renderSetup(){
 
 // lap 1: record each class as you reach it
 function lap1Ready(f){return f.room.trim()&&f.tech;}
-function classLabel(c,long){const y=c.year?(long?"Year ":"Yr ")+c.year:"";const t=[y,c.subject,c.cover?"(cover)":""].filter(Boolean).join(" ");return t||"Year and subject not noted";}
+function classLabel(c,long){const y=c.year?yearName(c.year,long):"";const t=[y,c.subject,c.cover?"(cover)":""].filter(Boolean).join(" ");return t||"Year and subject not noted";}
 function lap1Blank(f){return !f.room.trim()&&!f.year&&!f.subject.trim()&&!f.cover&&!f.tech&&!f.note.trim();}
 function renderLap1(){
   const w=S.walk,f=form;
@@ -243,7 +245,7 @@ function renderLap1(){
   <section class="panel">
     <div><h1>Round 1: class ${w.classes.length+1}</h1><p class="muted">Fill this in at the doorway, then save and walk on.</p></div>
     <div class="field"><label class="label" for="room">Room</label><input type="text" id="room" value="${esc(f.room)}" placeholder="e.g. B204" autocapitalize="characters" autocomplete="off"></div>
-    <div class="field"><span class="label">Year level <em>(optional)</em></span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${f.year===y}">${y}</button>`).join("")}</div></div>
+    <div class="field"><span class="label">Year level <em>(optional)</em></span><div class="chips years" role="group" aria-label="Year level">${YEARS.map(y=>`<button class="chip" data-year="${y}" aria-pressed="${String(f.year)===y}">${y}</button>`).join("")}</div></div>
     <div class="field"><span class="label">Subject <em>(optional)</em></span><div class="chips" role="group" aria-label="Subject">${SUBJECTS.map(x=>`<button class="chip" data-subj="${esc(x)}" aria-pressed="${f.subject===x}">${esc(x)}</button>`).join("")}</div></div>
     <div class="field"><span class="label">Cover lesson? <em>(tick only if you know it is)</em></span><div class="chips" role="group" aria-label="Cover lesson"><button class="chip" id="cover" aria-pressed="${!!f.cover}">${f.cover?"✓ ":""}Cover lesson</button></div></div>
     ${ynBlock("Using iPads/laptops?","tech",f.tech,false)}
@@ -258,7 +260,7 @@ function renderLap1(){
   $("#cover").onclick=()=>{f.cover=!f.cover;renderLap1();};
   document.querySelectorAll("[data-subj]").forEach(b=>b.onclick=()=>{f.subject=f.subject===b.dataset.subj?"":b.dataset.subj;renderLap1();});
   $("#note").oninput=e=>{f.note=e.target.value;};
-  document.querySelectorAll("[data-year]").forEach(b=>b.onclick=()=>{f.year=f.year===+b.dataset.year?null:+b.dataset.year;renderLap1();});
+  document.querySelectorAll("[data-year]").forEach(b=>b.onclick=()=>{f.year=String(f.year)===b.dataset.year?null:b.dataset.year;renderLap1();});
   bindYN(v=>{f.tech=v;renderLap1();});
   function upd(){$("#saveC").disabled=!lap1Ready(f);}
   $("#saveC").onclick=()=>{
